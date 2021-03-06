@@ -81,8 +81,7 @@ class CartoonMadSpider(scrapy.Spider):
             if os.path.exists(img_dir_path) and (int(c_page_size) == len(os.listdir(img_dir_path))):
                 continue
 
-            if c_id == "001":
-                yield scrapy.Request(c_url, meta={"m_id": m_id, "c_name": c_name, "c_id": c_id, "c_page_size": c_page_size, "img_dir_path": img_dir_path}, callback=self.__page_parse)
+            yield scrapy.Request(c_url, meta={"m_id": m_id, "c_name": c_name, "c_id": c_id, "c_page_size": c_page_size, "img_dir_path": img_dir_path}, callback=self.__page_parse)
 
     def __page_parse(self, response):
         # Hard code ad fixing.
