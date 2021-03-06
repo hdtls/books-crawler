@@ -1,7 +1,9 @@
 import scrapy
 import os
 import re
-from books_scrapy.items import CartoonMadManga
+from books_scrapy.items import Manga
+from books_scrapy.items import MangaChapter
+from books_scrapy.items import Image
 
 class CartoonMadSpider(scrapy.Spider):
     name = "cartoonmad"
@@ -40,6 +42,13 @@ class CartoonMadSpider(scrapy.Spider):
         # Format string using utf8 encoding.
         m_name = str(response.css('title::text').get()[:-14].strip().replace('?', '').strip())
 
+        # tr_list = response.css("td:nth-child(2) tr:nth-child(4) tr:nth-child(2)")
+      
+        # m_cover_url = self.base_url + tr_list[1].css("img::attr(src)").get()
+        # m_categories = tr_list.css("tr:nth-child(3) a::text").get()
+        # m_authors = tr_list.css("tr:nth-child(5) td::text").get().strip()[6:].split(",")
+        # m_excerpt = str(response.css("fieldset td::text").get().strip())
+
         td_list = response.css("fieldset")[1].css("tr > td")
 
         for index, td in enumerate(td_list):
@@ -63,22 +72,19 @@ class CartoonMadSpider(scrapy.Spider):
 
             c_url = self.base_url + td.css("a::attr(href)").get()
 
-            img_dir_path = os.getcwd() + "/download/" + self.name + "/" + m_id + '_' + m_name + '/' + c_id
+            # Get images store from settings.
+            img_dir_path = self.settings["IMAGES_STORE"]
+            img_dir_path = img_dir_path + "/" + self.name + "/" + m_id + '_' + m_name + '/' + c_name
+
             # Check whether file exists at `path` and file size equal to `c_page_size` to
             # skip duplicate download operation. 
             if os.path.exists(img_dir_path) and (int(c_page_size) == len(os.listdir(img_dir_path))):
                 continue
 
-            yield scrapy.Request(c_url, meta={'m_id': m_id, 'c_id': c_id, 'c_page_size': c_page_size, 'img_dir_path': img_dir_path}, callback=self.__page_parse)
+            if c_id == "001":
+                yield scrapy.Request(c_url, meta={"m_id": m_id, "c_name": c_name, "c_id": c_id, "c_page_size": c_page_size, "img_dir_path": img_dir_path}, callback=self.__page_parse)
 
     def __page_parse(self, response):
-        """
-        scrapy shell https://www.cartoonmad.com/comic/469500002025001.html
-        scrapy shell https://www.cartoonmad.com/comic/169800012046001.html
-        scrapy shell https://www.cartoonmad.com/comic/872600014021002.html
-        scrapy shell https://www.cartoonmad.com/comic/872600012021001.html
-        scrapy shell https://www.cartoonmad.cc/comic/870100022025003.html
-        """
         # Hard code ad fixing.
         if '漫畫讀取中' in response.text:
             pattern = '''var link = '(.*?)';'''
@@ -121,27 +127,19 @@ class CartoonMadSpider(scrapy.Spider):
                 url_prefix = url_splits[0] + '//' + url_splits[2] + '/' + url_splits[3] + '/'
                 url_suff = ".jpg"
                 break
-        # 下载图片
+
+        # Perform chapter download operation.
         # https://web.cartoonmad.com/c37sn562e81/3899/001/010.jpg
         # https://www.cartoonmad.com/comic/comicpic.asp?file=/8726/001/002
 
-        manga = CartoonMadManga()
-        img_dir_path = response.meta["img_dir_path"]
+        chapter = MangaChapter()
+        chapter["name"] = response.meta["c_name"]
 
-        for page in range(1, int(response.meta["c_page_size"]) + 1):    
-            manga['imgurl'] = url_prefix + response.meta["m_id"] + '/' + response.meta["c_id"] + '/' + str(page).zfill(3) + url_suff
+        image_list = []
+        for page in range(1, int(response.meta["c_page_size"]) + 1):
+            image_name = str(page).zfill(3)
 
-            manga['imgname'] = str(page).zfill(3) + '.jpg'
-            img_file_path = img_dir_path + '/' + manga['imgname']
-
-            # Skip files that already downloaded.
-            if os.path.exists(img_file_path):
-                continue
-
-            if not os.path.exists(img_dir_path):
-                os.makedirs(img_dir_path)
-
-            headers = {
+            http_headers = {
                 "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
                 "Accept-Encoding": "gzip, deflate, br",
                 "Accept-Language": "zh-CN,zh;q=0.9,ja;q=0.8,en;q=0.7",
@@ -151,5 +149,16 @@ class CartoonMadSpider(scrapy.Spider):
                 "Referer": response.url,
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36",
             }
-            manga['imgheaders'] = headers
-            # yield manga
+
+            image = Image(
+                name = image_name + '.jpg',
+                file_path = response.meta["img_dir_path"] + '/' + image_name + '.jpg',
+                url = url_prefix + response.meta["m_id"] + '/' + response.meta["c_id"] + '/' + image_name + url_suff,
+                http_headers = http_headers
+            )
+
+            image_list.append(image)
+
+        chapter["image_urls"] = image_list
+
+        yield chapter

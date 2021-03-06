@@ -16,16 +16,24 @@ class Manga(scrapy.Item):
     categories = scrapy.Field()
     excerpt = scrapy.Field()
     chapters = scrapy.Field()
-    
-class Chapter(scrapy.Item):
+        
+class Image(scrapy.Item):
     name = scrapy.Field()
+    file_path = scrapy.Field()
+    url = scrapy.Field()
+    http_headers = scrapy.Field()
+    size = scrapy.Field()
+
+class MangaChapter(scrapy.Item):
+    name = scrapy.Field()
+    images = scrapy.Field()
     image_urls = scrapy.Field()
 
 class CartoonMadManga(scrapy.Item):
         # define the fields for your item here like:
     # name = scrapy.Field()
-    imgurl = scrapy.Field()
-    imgname = scrapy.Field()
+    image_urls = scrapy.Field()
+
     imgfolder = scrapy.Field()
     # 设置header
     imgheaders = scrapy.Field()
