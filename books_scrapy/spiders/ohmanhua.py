@@ -7,20 +7,21 @@ from books_scrapy.items import MangaChapter
 from books_scrapy.items import Image
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from pathlib import Path
 from scrapy import Request
 
 
 class OHManhuaSpider(scrapy.Spider):
     name = "ohmanhua"
     base_url = "https://www.cocomanhua.com"
-    start_urls = ["https://www.cocomanhua.com/15177"]
+    start_urls = ["https://www.cocomanhua.com/18741"]
 
     def start_requests(self):
         for url in self.start_urls:
             yield Request(url, self.parse)
 
-    def parse(self, response):
-        self.__parse_detail_page(response)
+    def parse(self, html):
+        return self.__parse_detail_page(html)
 
     def __parse_detail_page(self, html):
         manga = Manga()
@@ -28,9 +29,7 @@ class OHManhuaSpider(scrapy.Spider):
 
         cover_image = Image()
         cover_image["name"] = "cover.jpg"
-        cover_image["url"] = html.css(
-            "dt.fed-deta-images a::attr(data-original)"
-        ).get()
+        cover_image["url"] = html.css("dt.fed-deta-images a::attr(data-original)").get()
 
         cover_image["file_path"] = self.__get_img_store() + "/" + manga["name"]
 
@@ -47,24 +46,37 @@ class OHManhuaSpider(scrapy.Spider):
                     manga["authors"] = fmt_author_label.split(" ")
                 elif "x" in fmt_author_label:
                     manga["authors"] = fmt_author_label.split("x")
-                elif:
+                else:
                     manga["authors"] = [fmt_author_label]
             elif label == "类别":
                 manga["categories"] = li.css("a::text").getall()
             elif label == "简介":
                 manga["excerpt"] = li.css("div::text").get()
 
-        chap_path_list = html.css("div.all_data_list li a::attr(href)").getall()
+        # yield manga
 
-        # for path in chap_path_list:
-            # url = self.base_url + path
-            # yield Request(url, self.__parse_chapter_page, meta=manga)
+        # Capter list serializing.
+        for li in html.css("div.all_data_list li"):
+            name = str(li.css("a::text").get().strip())
+
+            fragments = self.__get_img_store_fragments()
+            fragments.extend([manga["name"], name])
+
+            # Skip download exists page.
+            if Path("/".join(fragments)).exists():
+                continue
+
+            url = self.base_url + li.css("a::attr(href)").get()
+            yield Request(url, self.__parse_chapter_page, meta=manga)
+
+    def __get_img_store_fragments(self):
+        return [self.settings["IMAGES_STORE"], self.name]
 
     def __get_img_store(self):
-        return "/".join([self.settings["IMAGES_STORE"], self.name])
+        return "/".join(self.__get_img_store_fragments())
 
     def __parse_chapter_page(self, html):
-        chapter_data = response.css('script:contains("var C_DATA")::text').get()[12:-2]
+        chapter_data = html.css('script:contains("var C_DATA")::text').get()[12:-2]
 
         if chapter_data is None:
             return None
@@ -86,7 +98,10 @@ class OHManhuaSpider(scrapy.Spider):
         )
         chapter["image_urls"] = self.__get_img_list(chapter_data, img_dir_path)
 
-        return chapter
+        manga = html.meta
+        manga["chapters"].append(chapter)
+
+        print(manga)
 
     def __get_img_list(self, chap, img_dir_path):
         total_img_size = int(chap["total_img_size"])
