@@ -13,7 +13,7 @@ from scrapy import Request
 class OHManhuaSpider(scrapy.Spider):
     name = "ohmanhua"
     base_url = "https://www.cocomanhua.com"
-    start_urls = ["https://www.cocomanhua.com/15177/1/209.html"]
+    start_urls = ["https://www.cocomanhua.com/15177"]
 
     def start_requests(self):
         for url in self.start_urls:
@@ -21,41 +21,47 @@ class OHManhuaSpider(scrapy.Spider):
 
     def parse(self, response):
         self.__parse_detail_page(response)
-    
+
     def __parse_detail_page(self, html):
         manga = Manga()
-        manga["name"] = response.css("dd.fed-deta-content h1::text").get()
+        manga["name"] = html.css("dd.fed-deta-content h1::text").get()
 
         cover_image = Image()
         cover_image["name"] = "cover.jpg"
-        cover_image["url"] = response.css("dt.fed-deta-images a::attr(data-original)").get()
-        cover_image["file_path"] = self.__get_img_store + "/" + manga["name"]
+        cover_image["url"] = html.css(
+            "dt.fed-deta-images a::attr(data-original)"
+        ).get()
+
+        cover_image["file_path"] = self.__get_img_store() + "/" + manga["name"]
 
         manga["cover_image"] = cover_image
 
-        li_list = response.css("dd.fed-deta-content ul li")
+        li_list = html.css("dd.fed-deta-content ul li")
         for li in li_list:
             label = li.css("span::text").get()
             if label == "状态":
                 manga["status"] = li.css("a::text").get()
             elif label == "作者":
-                manga["authors"] = li.css("a::text").get()
+                fmt_author_label = li.css("a::text").get()
+                if " " in fmt_author_label:
+                    manga["authors"] = fmt_author_label.split(" ")
+                elif "x" in fmt_author_label:
+                    manga["authors"] = fmt_author_label.split("x")
+                elif:
+                    manga["authors"] = [fmt_author_label]
+            elif label == "类别":
+                manga["categories"] = li.css("a::text").getall()
             elif label == "简介":
                 manga["excerpt"] = li.css("div::text").get()
-        
-        chap_path_list = response.css("div.all_data_list li a::attr(href)").getall()
 
-        for path in chap_path_list:
-            url = self.base_url + path
-            yield Request(url, self.__parse_chapter_page, meta=manga)
+        chap_path_list = html.css("div.all_data_list li a::attr(href)").getall()
+
+        # for path in chap_path_list:
+            # url = self.base_url + path
+            # yield Request(url, self.__parse_chapter_page, meta=manga)
 
     def __get_img_store(self):
-         return "/".join(
-            [
-                self.settings["IMAGES_STORE"],
-                self.name
-            ]
-        )
+        return "/".join([self.settings["IMAGES_STORE"], self.name])
 
     def __parse_chapter_page(self, html):
         chapter_data = response.css('script:contains("var C_DATA")::text').get()[12:-2]
