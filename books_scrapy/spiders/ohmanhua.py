@@ -31,7 +31,7 @@ class OHManhuaSpider(scrapy.Spider):
         cover_image["name"] = "cover.jpg"
         cover_image["url"] = html.css("dt.fed-deta-images a::attr(data-original)").get()
 
-        cover_image["file_path"] = self.__get_img_store() + "/" + manga["name"]
+        cover_image["file_path"] = self.__get_img_store(manga["name"])
 
         manga["cover_image"] = cover_image
 
@@ -59,21 +59,26 @@ class OHManhuaSpider(scrapy.Spider):
         for li in html.css("div.all_data_list li"):
             name = str(li.css("a::text").get().strip())
 
-            fragments = self.__get_img_store_fragments()
-            fragments.extend([manga["name"], name])
+            img_store = self.__get_img_store(manga["name"], name)
 
             # Skip download exists page.
-            if Path("/".join(fragments)).exists():
+            if Path(img_store).exists():
                 continue
 
             url = self.base_url + li.css("a::attr(href)").get()
-            yield Request(url, self.__parse_chapter_page, meta=manga)
+            yield Request(
+                url, self.__parse_chapter_page, meta={"ref_id": manga["name"]}
+            )
 
-    def __get_img_store_fragments(self):
-        return [self.settings["IMAGES_STORE"], self.name]
+    def __get_img_store(self, name, chapter_name=None):
+        fragments = [self.settings["IMAGES_STORE"], self.name]
+        if name is not None:
+            fragments.append(name)
 
-    def __get_img_store(self):
-        return "/".join(self.__get_img_store_fragments())
+        if chapter_name is not None:
+            fragments.append(chapter_name)
+
+        return "/".join(fragments)
 
     def __parse_chapter_page(self, html):
         chapter_data = html.css('script:contains("var C_DATA")::text').get()[12:-2]
@@ -88,20 +93,14 @@ class OHManhuaSpider(scrapy.Spider):
 
         chapter = MangaChapter()
 
-        img_dir_path = "/".join(
-            [
-                self.settings["IMAGES_STORE"],
-                self.name,
-                chapter_data["mhname"],
-                chapter_data["pagename"],
-            ]
+        img_store = self.__get_img_store(
+            chapter_data["mhname"],
+            chapter_data["pagename"],
         )
-        chapter["image_urls"] = self.__get_img_list(chapter_data, img_dir_path)
+        chapter["image_urls"] = self.__get_img_list(chapter_data, img_store)
 
-        manga = html.meta
-        manga["chapters"].append(chapter)
-
-        print(manga)
+        print(chapter)
+        # yield chapter
 
     def __get_img_list(self, chap, img_dir_path):
         total_img_size = int(chap["total_img_size"])
