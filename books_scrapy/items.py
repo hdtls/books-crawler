@@ -26,10 +26,14 @@ class Image(scrapy.Item):
 
 
 class MangaChapter(scrapy.Item):
+    identifier = scrapy.Field()
     name = scrapy.Field()
+    ref_url = scrapy.Field()
     images = scrapy.Field()
     image_urls = scrapy.Field()
+    page_size = scrapy.Field()
     parent_id = scrapy.Field()
+    parent_name = scrapy.Field()
 
 
 class CartoonMadManga(scrapy.Item):
