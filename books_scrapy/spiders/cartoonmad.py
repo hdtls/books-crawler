@@ -1,127 +1,170 @@
 import scrapy
 import os
 import re
+from books_scrapy.items import Image
 from books_scrapy.items import Manga
 from books_scrapy.items import MangaChapter
-from books_scrapy.items import Image
-
+from books_scrapy.utils import fmt_label
+from scrapy import Request
 
 class CartoonMadSpider(scrapy.Spider):
     name = "cartoonmad"
-    allowed_domains = ["cartoonmad.com"]
     base_url = "https://www.cartoonmad.com"
-    start_urls = []
+    start_urls = ["https://www.cartoonmad.com/comic/5292.html"]
+    _invalid_id_list = ["2500"]
 
     custom_settings = {"MEDIA_ALLOW_REDIRECTS": True}
 
-    def __init__(self, **kwargs):
-        super(CartoonMadSpider, self).__init__(**kwargs)
+    def start_requests(self):
+        for url in self.start_urls:
+            # Handling missing chapters.
+            if url.split("/")[-1].split(".")[0] in self._invalid_id_list:
+                continue
+            yield Request(url, self.parse)
 
-        id_list = getattr(self, "list", None)
+    def parse(self, html):
+        return self.parse_detail_page(html)
 
-        # Make sure input is valid.
-        if id_list is None or id_list.strip() == "":
-            return
+    def parse_detail_page(self, html):
+        manga = Manga()
+        manga["name"] = html.css("title::text").get()[:-14].strip()
 
-        for m_id in id_list.split(","):
-            url = self.base_url + "/comic/" + m_id + ".html"
+        tr_list = html.css("td:nth-child(2) tr:nth-child(4) tr:nth-child(2)")
 
-            # Ignore duplicate url.
-            if url not in self.start_urls:
-                self.start_urls.append(url)
-
-    def parse(self, response):
-        m_id = response.url.split("/")[-1].split(".")[0]
-
-        # Handling missing chapters.
-        invalid_id_list = ["2500"]
-        if m_id in invalid_id_list:
-            return
-
-        # Format string using utf8 encoding.
-        m_name = str(
-            response.css("title::text").get()[:-14].strip().replace("?", "").strip()
+        cover_image = Image()
+        cover_image["name"] = "cover.jpg"
+        cover_image["url"] = self.base_url + tr_list[1].css("img::attr(src)").get()
+        cover_image["file_path"] = (
+            self.get_img_store(manga["name"]) + "/" + cover_image["name"]
         )
 
-        # tr_list = response.css("td:nth-child(2) tr:nth-child(4) tr:nth-child(2)")
+        manga["cover_image"] = cover_image
+        manga["authors"] = (
+            tr_list.css("tr:nth-child(5) td::text").get().strip()[6:].split(",")
+        )
+        manga["categories"] = tr_list.css("tr:nth-child(3) a::text").get()
+        manga["excerpt"] = html.css("fieldset td::text").get().strip()
 
-        # m_cover_url = self.base_url + tr_list[1].css("img::attr(src)").get()
-        # m_categories = tr_list.css("tr:nth-child(3) a::text").get()
-        # m_authors = tr_list.css("tr:nth-child(5) td::text").get().strip()[6:].split(",")
-        # m_excerpt = str(response.css("fieldset td::text").get().strip())
+        # FIXME: Yield manga
+        # yield manga
+        self.logger.debug(manga)
 
-        td_list = response.css("fieldset")[1].css("tr > td")
+        td_list = html.css("fieldset")[1].css("tr > td")
 
         for index, td in enumerate(td_list):
-            c_name = td.css("a::text").get()
-            if c_name is None:
+            chapter = MangaChapter()
+            # Skip empty html tag.
+            if td.css("a::attr(href)") is None:
                 continue
-            c_id = c_name.split(" ")[1]
-            c_page_size = ""
 
+            chapter["name"] = td.css("a::text").get()
+            if chapter["name"] is None:
+                continue
+
+            chapter["identifier"] = chapter["name"].split(" ")[1]
+
+            parent_id = html.url.split("/")[-1].split(".")[0]
+            page_size = 0
             # Handing page fault.
-            if m_id == "1893":
+            if [parent_id] == "1893":
                 if index == 0:
-                    c_page_size = "11"
+                    page_size = 11
                 elif index == 1:
-                    c_page_size = "21"
-            elif m_id == "3908":
+                    page_size = 21
+            elif parent_id == "3908":
                 if index == 0:
-                    c_page_size = "11"
+                    page_size = 11
             else:
-                c_page_size = td.css("font::text").get()[1:-2]
+                page_size = int(fmt_label(td.css("font::text").get())[1:-2])
 
-            c_url = self.base_url + td.css("a::attr(href)").get()
+            chapter["parent_id"] = parent_id
+            chapter["parent_name"] = manga["name"]
+            chapter["page_size"] = page_size
+            chapter["ref_url"] = self.base_url + fmt_label(
+                td.css("a::attr(href)").get()
+            )
 
             # Get images store from settings.
-            img_dir_path = self.settings["IMAGES_STORE"]
-            img_dir_path = (
-                img_dir_path
-                + "/"
-                + self.name
-                + "/"
-                + m_id
-                + "_"
-                + m_name
-                + "/"
-                + c_name
-            )
+            img_store = self.get_img_store(manga["name"], chapter["name"])
 
             # Check whether file exists at `path` and file size equal to `c_page_size` to
             # skip duplicate download operation.
-            if os.path.exists(img_dir_path) and (
-                int(c_page_size) == len(os.listdir(img_dir_path))
-            ):
+            if os.path.exists(img_store) and (page_size == len(os.listdir(img_store))):
                 continue
 
-            yield scrapy.Request(
-                c_url,
-                meta={
-                    "m_id": m_id,
-                    "c_name": c_name,
-                    "c_id": c_id,
-                    "c_page_size": c_page_size,
-                    "img_dir_path": img_dir_path,
-                },
-                callback=self.__page_parse,
+            yield Request(
+                chapter["ref_url"],
+                meta=chapter,
+                callback=self.parse_chapter_page,
             )
 
-    def __page_parse(self, response):
+    def parse_chapter_page(self, html):
         # Hard code ad fixing.
-        if "漫畫讀取中" in response.text:
+        if "漫畫讀取中" in html.text:
             pattern = """var link = '(.*?)';"""
-            res = re.search(pattern, response.text)
+            res = re.search(pattern, html.text)
             c_url = res[1]
-            yield scrapy.Request(c_url, meta=response.meta, callback=self.__page_parse)
+            yield Request(c_url, meta=html.meta, callback=self.parse_chapter_page)
             return
 
-        urls = response.css("img::attr(src)").getall()
+        urls = html.css("img::attr(src)").getall()
 
         # https://www.cartoonmad.com/comic/comicpic.asp?file=/4695/000/001
         # https://www.cartoonmad.com/home75378/4695/000/001.jpg
         # https://www.cartoonmad.com/comic/comicpic.asp?file=/3080/001/001&rimg=1
         # https://web3.cartoonmad.com/home13712/3080/001/001.jpg
 
+        img_url_parts = self._get_img_url_parts(urls)
+
+        # Perform chapter download operation.
+        # https://web.cartoonmad.com/c37sn562e81/3899/001/010.jpg
+        # https://www.cartoonmad.com/comic/comicpic.asp?file=/8726/001/002
+
+        chapter = html.meta
+
+        img_store = self.get_img_store(chapter["parent_name"], chapter["name"])
+
+        image_list = []
+        for page in range(1, chapter["page_size"] + 1):
+            image_name = str(page).zfill(4)
+
+            http_headers = {
+                "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Accept-Language": "zh-CN,zh;q=0.9,ja;q=0.8,en;q=0.7",
+                "Connection": "keep-alive",
+                "DNT": "1",
+                "Host": "www.cartoonmad.com",
+                "Referer": chapter["ref_url"],
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36",
+            }
+
+            url = (
+                img_url_parts[0]
+                + chapter["parent_id"]
+                + "/"
+                + chapter["identifier"]
+                + "/"
+                + image_name
+                + img_url_parts[1]
+            )
+
+            image = Image(
+                name=image_name + ".jpg",
+                file_path=img_store + "/" + image_name + ".jpg",
+                url=url,
+                http_headers=http_headers,
+            )
+
+            image_list.append(image)
+
+        chapter["image_urls"] = image_list
+
+        # FIXME: Yield chapter
+        # yield chapter
+        self.logger.debug(chapter)
+
+    def _get_img_url_parts(self, urls):
         url_prefix = ""
         url_suff = ""
 
@@ -151,17 +194,11 @@ class CartoonMadSpider(scrapy.Spider):
                 )
                 url_suff = ".jpg"
                 break
-
-        # Perform chapter download operation.
-        # https://web.cartoonmad.com/c37sn562e81/3899/001/010.jpg
-        # https://www.cartoonmad.com/comic/comicpic.asp?file=/8726/001/002
-
-        chapter = MangaChapter()
-        chapter["name"] = response.meta["c_name"]
+        return [url_prefix, url_suff]
 
         image_list = []
-        for page in range(1, int(response.meta["c_page_size"]) + 1):
-            image_name = str(page).zfill(3)
+        for page in range(1, chapter["page_size"] + 1):
+            image_name = str(page).zfill(4)
 
             http_headers = {
                 "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
@@ -170,25 +207,36 @@ class CartoonMadSpider(scrapy.Spider):
                 "Connection": "keep-alive",
                 "DNT": "1",
                 "Host": "www.cartoonmad.com",
-                "Referer": response.url,
+                "Referer": chapter["ref_url"],
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36",
             }
 
-            image = Image(
-                name=image_name + ".jpg",
-                file_path=response.meta["img_dir_path"] + "/" + image_name + ".jpg",
-                url=url_prefix
-                + response.meta["m_id"]
+            url = (
+                url_prefix
+                + chapter["parent_id"]
                 + "/"
-                + response.meta["c_id"]
+                + chapter["identifier"]
                 + "/"
                 + image_name
-                + url_suff,
+                + url_suff
+            )
+
+            image = Image(
+                name=image_name + ".jpg",
+                file_path=img_store + "/" + image_name + ".jpg",
+                url=url,
                 http_headers=http_headers,
             )
 
             image_list.append(image)
+        return image_list
 
-        chapter["image_urls"] = image_list
+    def get_img_store(self, name, chapter_name=None):
+        fragments = [self.settings["IMAGES_STORE"], self.name]
+        if name is not None:
+            fragments.append(name)
 
-        yield chapter
+        if chapter_name is not None:
+            fragments.append(chapter_name)
+
+        return "/".join(fragments)
