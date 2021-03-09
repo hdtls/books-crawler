@@ -17,6 +17,8 @@ NEWSPIDER_MODULE = "books_scrapy.spiders"
 SPLASH_URL = "http://localhost:8050"
 DUPEFILTER_CLASS = "scrapy_splash.SplashAwareDupeFilter"
 
+FEED_EXPORT_ENCODING = 'utf-8'
+
 # LOG_LEVEL = "ERROR"
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
