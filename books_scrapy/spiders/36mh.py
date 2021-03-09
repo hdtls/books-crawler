@@ -7,6 +7,7 @@ from books_scrapy.items import Image
 from books_scrapy.items import Manga
 from books_scrapy.items import MangaChapter
 from books_scrapy.utils import fmt_label
+from books_scrapy.utils import fmt_str
 from books_scrapy.utils import get_img_store
 from scrapy import Request
 
@@ -25,65 +26,82 @@ class The36MHSpider(scrapy.Spider):
         return self.parse_detail_page(html)
 
     def parse_detail_page(self, html):
-        manga = Manga()
-
-        manga["name"] = html.xpath(
-            "//div[contains(@class, 'book-title')]//span/text()"
-        ).get()
-        manga["excerpt"] = html.xpath("//div[@id='intro-all']//p/text()").get().strip()
-
-        cover_image = Image()
-        cover_image["name"] = "cover.jpg"
-        cover_image["url"] = html.xpath(
-            "//div[contains(@class, 'book-cover')]/p/img/@src"
-        ).get()
-        cover_image["file_path"] = get_img_store(
-            self.settings, self.name, manga["name"]
+        manga_name = fmt_str(
+            html.xpath("//div[contains(@class, 'book-title')]//span/text()").get()
         )
+
+        manga_intro = fmt_str(html.xpath("//div[@id='intro-all']//p/text()").get())
+
+        img_name = "cover.jpg"
+        img_url = fmt_str(
+            html.xpath("//div[contains(@class, 'book-cover')]/p/img/@src").get()
+        )
+        img_file_path = get_img_store(self.settings, self.name, manga_name)
+
+        manga_cover_image = Image(name=img_name, url=img_url, file_path=img_file_path)
 
         for span in html.xpath("//ul[contains(@class, 'detail-list')]//span"):
             label = span.xpath("./strong/text()").get()
             text = span.xpath("./a/text()").get()
             if label == "漫画地区：":
-                manga["area"] = text
+                manga_area = text
             elif label == "字母索引：":
                 index = text
             elif label == "漫画剧情：":
-                manga["categories"] = span.xpath("./a/text()").getall()
+                manga_categories = span.xpath("./a/text()").getall()
             elif label == "漫画作者：":
-                manga["authors"] = fmt_label(text).split(",")
+                manga_authors = fmt_label(text).split(",")
             elif label == "漫画状态：":
-                manga["status"] = text
+                manga_status = text
+
+        manga = Manga(
+            name=manga_name,
+            cover_image=manga_cover_image,
+            status=manga_status,
+            authors=manga_authors,
+            excerpt=manga_intro,
+            categories=manga_categories,
+            area=manga_area,
+            ref_url=html.url,
+        )
+
+        yield manga
 
         for li in html.xpath("//ul[@id='chapter-list-4']/li"):
-            chapter = MangaChapter()
-            chapter["name"] = li.xpath("//span/text()").get().strip()
-            chapter["ref_url"] = self.base_url + fmt_label(li.xpath("./a/@href").get())
-            chapter["parent_id"] = html.url
-            chapter["parent_name"] = manga["name"]
-            yield Request(chapter["ref_url"], self.parse_chapter_page, meta=chapter)
+            manga_chapter_id = fmt_str(li.xpath("./a/@href").get())
+            manga_chapter_name = fmt_str(li.xpath(".//span/text()").get())
+            manga_chapter_ref_url = self.base_url + manga_chapter_id
+
+            chapter = MangaChapter(
+                identifier=manga_chapter_id,
+                name=manga_chapter_name,
+                ref_url=manga_chapter_ref_url,
+                parent_id=html.url,
+                parent_name=manga_name,
+            )
+
+            yield Request(manga_chapter_ref_url, self.parse_chapter_page, meta={"__ref_key": chapter})
 
     def parse_chapter_page(self, html):
-        chapter = html.meta
-
         url_suffix_match = re.findall(r"var chapterImages = (.*?);", html.text)
         path_match = re.findall(r"var chapterPath = (.*?);", html.text)
 
         if not url_suffix_match or not path_match:
             return
 
-        image_list = []
+        img_list = []
 
         for index, url in enumerate(json.loads(url_suffix_match[0])):
-            image = Image()
-            image["url"] = self.img_base_url + "/" + json.loads(path_match[0]) + url
-            image["name"] = str(index).zfill(4) + ".jpg"
-            image["file_path"] = get_img_store(
-                self.settings, self.name, chapter["parent_name"], image["name"]
+            img_url = self.img_base_url + "/" + json.loads(path_match[0]) + url
+            img_name = str(index).zfill(4) + ".jpg"
+            img_file_path = get_img_store(
+                self.settings, self.name, html.meta["parent_name"], html.meta["name"]
             )
+            image = Image(url=img_url, name=img_name, file_path=img_file_path)
+            img_list.append(image)
 
-            image_list.append(image)
+        chapter = MangaChapter(html.meta["__ref_key"])
+        chapter["image_urls"] = img_list
+        chapter["page_size"] = len(img_list)
 
-        chapter["image_urls"] = image_list
-        
         yield chapter
