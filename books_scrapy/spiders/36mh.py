@@ -16,8 +16,9 @@ class The36MHSpider(scrapy.Spider):
     base_url = "https://www.36mh.net"
     img_base_url = "https://img001.microland-design.com"
     start_urls = [
+        # "https://www.36mh.net/list/update/",
         "https://www.36mh.net/manhua/jiesuomoshide99genvzhu/",
-        "https://www.36mh.net/manhua/jiesuomoshide99genvzhu/790041.html#p=1",
+        # "https://www.36mh.net/manhua/jiesuomoshide99genvzhu/790041.html#p=1",/
     ]
 
     def parse(self, html):
@@ -48,9 +49,9 @@ class The36MHSpider(scrapy.Spider):
             elif label == "字母索引：":
                 index = text
             elif label == "漫画剧情：":
-                manga["categories"] = text
+                manga["categories"] = span.xpath("./a/text()").getall()
             elif label == "漫画作者：":
-                manga["authors"] = text
+                manga["authors"] = fmt_label(text).split(",")
             elif label == "漫画状态：":
                 manga["status"] = text
 
