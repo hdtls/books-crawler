@@ -15,7 +15,7 @@ class Manga(scrapy.Item):
     categories = scrapy.Field()
     excerpt = scrapy.Field()
     chapters = scrapy.Field()
-
+    area = scrapy.Field()
 
 class Image(scrapy.Item):
     name = scrapy.Field()
