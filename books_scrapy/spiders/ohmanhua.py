@@ -14,7 +14,11 @@ from scrapy import Request
 class OHManhuaSpider(scrapy.Spider):
     name = "ohmanhua"
     base_url = "https://www.cocomanhua.com"
-    start_urls = ["https://www.cocomanhua.com/show?orderBy=update"]
+    start_urls = [
+        # "https://www.cocomanhua.com/show?orderBy=update",
+        "https://www.cocomanhua.com/18865/",
+        # "https://www.cocomanhua.com/18865/1/17.html"
+    ]
 
     def start_requests(self):
         for url in self.start_urls:
@@ -102,8 +106,7 @@ class OHManhuaSpider(scrapy.Spider):
         )
         chapter["image_urls"] = self._get_img_list(chapter_data, img_store)
 
-        print(chapter)
-        # yield chapter
+        yield chapter
 
     def _get_img_list(self, chap, img_dir_path):
         total_img_size = int(chap["total_img_size"])
@@ -124,9 +127,11 @@ class OHManhuaSpider(scrapy.Spider):
             start_index += 1
 
             image = Image()
-            image["name"] = chap["pagename"]
+            # image["name"] = chap["pagename"]
+            image["name"] = str(img_index).zfill(4) + ".jpg"
             image["url"] = base_url + str(start_index).zfill(4) + ".jpg"
-            image["file_path"] = img_dir_path + "/" + str(img_index).zfill(4) + ".jpg"
+            image["file_path"] = img_dir_path
+            image["http_headers"] = None
             image_list.append(image)
 
         return image_list
@@ -142,31 +147,6 @@ class OHManhuaSpider(scrapy.Spider):
         mh_info = None
         image_info = None
 
-        """
-        mh_info = {
-            startimg:1,
-            enc_code1:"cmtuSTY3NmtpREpnbnhsVXk5aFV0Zz09",
-            mhid:"15177",
-            enc_code2:"dExESkN1a05ZcU9wTVRobEVMY2V5aWdVRU9xZllhOFN3SEZhRXZVRTBPWFdwbTJyRFhVMWZISDZXSnRBVExsSmthejhEeUZVSnV5QVNGeTRmdEY0UlpobkwyWWx4ank3c0tCZ3ZDUk05c1k9",
-            mhname:"大王饶命",
-            pageid:3254380,
-            pagename:"205 跳级生吕小鱼",
-            pageurl:"1/209.html",
-            readmode:3,
-            maxpreload:5,
-            defaultminline:1,
-            domain:"img.cocomanhua.com",
-            manga_size:"",
-            default_price:0,
-            price:0
-        };
-        image_info = {
-            img_type:"",
-            urls__direct:"",
-            line_id:1,
-            local_watch_url:""
-        }
-        """
         for obj in plaintext.split(";"):
             if mh_info is None and mh_key in obj:
                 va_list = obj.split(mh_key)
@@ -185,6 +165,7 @@ class OHManhuaSpider(scrapy.Spider):
                 "fw125gjdi9ertyui",
             )
 
+        # self.logger.debug(mh_info)
         return mh_info
 
     def _try_decrypt(self, ciphertext, key=None, default_key=None):

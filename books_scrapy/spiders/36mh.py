@@ -6,9 +6,7 @@ import json
 from books_scrapy.items import Image
 from books_scrapy.items import Manga
 from books_scrapy.items import MangaChapter
-from books_scrapy.utils import fmt_label
-from books_scrapy.utils import fmt_str
-from books_scrapy.utils import get_img_store
+from books_scrapy.utils import *
 from scrapy import Request
 
 
@@ -26,14 +24,14 @@ class The36MHSpider(scrapy.Spider):
         return self.parse_detail_page(html)
 
     def parse_detail_page(self, html):
-        manga_name = fmt_str(
+        manga_name = fmt_label(
             html.xpath("//div[contains(@class, 'book-title')]//span/text()").get()
         )
 
-        manga_intro = fmt_str(html.xpath("//div[@id='intro-all']//p/text()").get())
+        manga_intro = fmt_label(html.xpath("//div[@id='intro-all']//p/text()").get())
 
         img_name = "cover.jpg"
-        img_url = fmt_str(
+        img_url = fmt_label(
             html.xpath("//div[contains(@class, 'book-cover')]/p/img/@src").get()
         )
         img_file_path = get_img_store(self.settings, self.name, manga_name)
@@ -68,8 +66,8 @@ class The36MHSpider(scrapy.Spider):
         yield manga
 
         for li in html.xpath("//ul[@id='chapter-list-4']/li"):
-            manga_chapter_id = fmt_str(li.xpath("./a/@href").get())
-            manga_chapter_name = fmt_str(li.xpath(".//span/text()").get())
+            manga_chapter_id = fmt_label(li.xpath("./a/@href").get())
+            manga_chapter_name = fmt_label(li.xpath(".//span/text()").get())
             manga_chapter_ref_url = self.base_url + manga_chapter_id
 
             chapter = MangaChapter(
@@ -80,7 +78,9 @@ class The36MHSpider(scrapy.Spider):
                 parent_name=manga_name,
             )
 
-            yield Request(manga_chapter_ref_url, self.parse_chapter_page, meta={"__ref_key": chapter})
+            yield Request(
+                manga_chapter_ref_url, self.parse_chapter_page, meta=fmt_meta(chapter)
+            )
 
     def parse_chapter_page(self, html):
         url_suffix_match = re.findall(r"var chapterImages = (.*?);", html.text)
@@ -93,14 +93,19 @@ class The36MHSpider(scrapy.Spider):
 
         for index, url in enumerate(json.loads(url_suffix_match[0])):
             img_url = self.img_base_url + "/" + json.loads(path_match[0]) + url
-            img_name = str(index).zfill(4) + ".jpg"
+            img_name = str(index + 1).zfill(4) + ".jpg"
             img_file_path = get_img_store(
-                self.settings, self.name, html.meta["parent_name"], html.meta["name"]
+                self.settings,
+                self.name,
+                revert_fmt_meta(html.meta)["parent_name"],
+                revert_fmt_meta(html.meta)["name"],
             )
-            image = Image(url=img_url, name=img_name, file_path=img_file_path)
+            image = Image(
+                url=img_url, name=img_name, file_path=img_file_path, http_headers=None
+            )
             img_list.append(image)
 
-        chapter = MangaChapter(html.meta["__ref_key"])
+        chapter = MangaChapter(revert_fmt_meta(html.meta))
         chapter["image_urls"] = img_list
         chapter["page_size"] = len(img_list)
 

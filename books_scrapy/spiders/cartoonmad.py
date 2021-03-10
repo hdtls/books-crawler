@@ -151,7 +151,7 @@ class CartoonMadSpider(scrapy.Spider):
 
             image = Image(
                 name=image_name + ".jpg",
-                file_path=img_store + "/" + image_name + ".jpg",
+                file_path=img_store,
                 url=url,
                 http_headers=http_headers,
             )
@@ -161,8 +161,7 @@ class CartoonMadSpider(scrapy.Spider):
         chapter["image_urls"] = image_list
 
         # FIXME: Yield chapter
-        # yield chapter
-        self.logger.debug(chapter)
+        yield chapter
 
     def _get_img_url_parts(self, urls):
         url_prefix = ""
