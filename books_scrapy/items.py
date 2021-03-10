@@ -16,6 +16,8 @@ class Manga(scrapy.Item):
     excerpt = scrapy.Field()
     chapters = scrapy.Field()
     area = scrapy.Field()
+    ref_url = scrapy.Field()
+
 
 class Image(scrapy.Item):
     name = scrapy.Field()
@@ -34,14 +36,3 @@ class MangaChapter(scrapy.Item):
     page_size = scrapy.Field()
     parent_id = scrapy.Field()
     parent_name = scrapy.Field()
-
-
-class CartoonMadManga(scrapy.Item):
-    # define the fields for your item here like:
-    # name = scrapy.Field()
-    image_urls = scrapy.Field()
-
-    imgfolder = scrapy.Field()
-    # 设置header
-    imgheaders = scrapy.Field()
-    pass
