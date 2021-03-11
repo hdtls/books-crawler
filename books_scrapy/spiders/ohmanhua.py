@@ -1,10 +1,13 @@
 import base64
 import demjson
 import scrapy
+import re
+import os
 
 from books_scrapy.items import Manga
 from books_scrapy.items import MangaChapter
 from books_scrapy.items import Image
+from books_scrapy.utils import *
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from pathlib import Path
@@ -16,8 +19,8 @@ class OHManhuaSpider(scrapy.Spider):
     base_url = "https://www.cocomanhua.com"
     start_urls = [
         # "https://www.cocomanhua.com/show?orderBy=update",
-        "https://www.cocomanhua.com/18865/",
-        # "https://www.cocomanhua.com/18865/1/17.html"
+        # "https://www.cocomanhua.com/18865/",
+        "https://www.cocomanhua.com/18865/1/17.html"
     ]
 
     def start_requests(self):
@@ -30,184 +33,213 @@ class OHManhuaSpider(scrapy.Spider):
                 yield Request(url, self.parse_detail_page)
 
     def parse(self, html):
-        return self.parse_detail_page(html)
+        # return self.parse_detail_page(html)
+        return self.parse_chapter_page(html)
 
     def parse_detail_page(self, html):
-        manga = Manga()
-        manga["name"] = html.css("dd.fed-deta-content h1::text").get()
+        # manga_name = html.css("dd.fed-deta-content h1::text").get()
+        manga_name = html.xpath(
+            "//dd[contains(@class, 'fed-deta-content')]/h1/text()"
+        ).get()
 
-        cover_image = Image()
-        cover_image["name"] = "cover.jpg"
-        cover_image["url"] = html.css("dt.fed-deta-images a::attr(data-original)").get()
+        img_name = "cover.jpg"
+        # img_url = html.css("dt.fed-deta-images a::attr(data-original)").get()
+        img_url = html.xpath(
+            "//dt[contains(@class, 'fed-deta-images')]/a/@data-original"
+        ).get()
+        img_file_path = get_img_store(self.settings, self.name, manga_name)
 
-        cover_image["file_path"] = self.get_img_store(manga["name"])
+        manga_cover_image = Image(
+            name=img_name, url=img_url, file_path=img_file_path, http_headers=None
+        )
 
-        manga["cover_image"] = cover_image
-
-        li_list = html.css("dd.fed-deta-content ul li")
-        for li in li_list:
-            label = li.css("span::text").get()
-            if label == "状态":
-                manga["status"] = li.css("a::text").get()
+        manga_area = "中国大陆"
+        # html.css("dd.fed-deta-content ul li")
+        for li in html.xpath("//dd[contains(@class, 'fed-deta-content')]/ul/li"):
+            # label = li.css("span::text").get()
+            label = li.xpath(".//span/text()").get()
+            # text = li.css("a::text").get()
+            text = li.xpath("./a/text()").get()
+            if label == "别名":
+                # There is an empty " " in results that should be ignored.
+                manga_alias = list(
+                    filter(lambda str: str != " ", li.xpath("./text()").getall())
+                )
+                manga_alias = fmt_label(manga_alias[0]) if len(manga_alias) >= 1 else ""
+                manga_alias = manga_alias.split(",")
+            elif label == "状态":
+                # manga_status = text
+                manga_status = text
             elif label == "作者":
-                fmt_author_label = li.css("a::text").get()
-                if " " in fmt_author_label:
-                    manga["authors"] = fmt_author_label.split(" ")
-                elif "x" in fmt_author_label:
-                    manga["authors"] = fmt_author_label.split("x")
+                if text.startswith("作者:"):
+                    text = fmt_label(text[3:])
+                if " " in text:
+                    manga_authors = text.split(" ")
+                elif "x" in text:
+                    manga_authors = text.split("x")
                 else:
-                    manga["authors"] = [fmt_author_label]
+                    manga_authors = [text]
             elif label == "类别":
-                manga["categories"] = li.css("a::text").getall()
+                # manga_categories = li.css("a::text").getall()
+                manga_categories = li.xpath("./a/text()").getall()
             elif label == "简介":
-                manga["excerpt"] = li.css("div::text").get()
+                # manga_intro = li.css("div::text").get()
+                manga_intro = li.xpath("./div/text()").get()
 
-        # yield manga
+        yield Manga(
+            name=manga_name,
+            alias=manga_alias,
+            cover_image=manga_cover_image,
+            authors=manga_authors,
+            status=manga_status,
+            categories=manga_categories,
+            excerpt=manga_intro,
+            area=manga_area,
+            ref_url=html.url,
+        )
 
         # Capter list serializing.
-        for li in html.css("div.all_data_list li"):
-            name = str(li.css("a::text").get().strip())
+        # html.css("div.all_data_list li")
+        for li in html.xpath("//div[contains(@class, 'all_data_list')]//li"):
+            # name = fmt_label(li.css("a::text").get()
+            name = fmt_label(li.xpath("./a/text()").get())
 
-            img_store = self.get_img_store(manga["name"], name)
+            # url = self.base_url + li.css("a::attr(href)").get()
+            url = self.base_url + li.xpath("./a/@href").get()
 
-            # Skip download exists page.
-            if Path(img_store).exists():
-                continue
-
-            url = self.base_url + li.css("a::attr(href)").get()
-            yield Request(url, self.parse_chapter_page, meta={"ref_id": manga["name"]})
-
-    def get_img_store(self, name, chapter_name=None):
-        fragments = [self.settings["IMAGES_STORE"], self.name]
-        if name is not None:
-            fragments.append(name)
-
-        if chapter_name is not None:
-            fragments.append(chapter_name)
-
-        return "/".join(fragments)
+            # TODO: Add detect to check whether chapter already downloaded.
+            yield Request(url, self.parse_chapter_page)
 
     def parse_chapter_page(self, html):
-        chapter_data = html.css('script:contains("var C_DATA")::text').get()[12:-2]
+        match = re.findall(r"var C_DATA= ?(.*?);", html.text)
 
-        if chapter_data is None:
-            return None
+        if len(match) <= 0:
+            return
 
-        chapter_data = self._decode(chapter_data)
+        loaded_chapter = self._load_chapter(demjson.decode(match[0]))
 
-        if chapter_data is None:
-            return None
+        if not loaded_chapter:
+            return
 
-        chapter = MangaChapter()
+        parent_name = loaded_chapter["mhname"]
+        name = loaded_chapter["pagename"]
+        page_size = loaded_chapter["page_size"]
+        img_store = get_img_store(self.settings, self.name, parent_name, name)
 
-        img_store = self.get_img_store(
-            chapter_data["mhname"],
-            chapter_data["pagename"],
+        # Download only when `page_size` is valid
+        # and the number of files in the folder `img_store` is less than page_size.
+        if not page_size or len(os.listdir(img_store)) >= page_size:
+            return
+
+        img_list = []
+        base_url = (
+            "https://"
+            + loaded_chapter["domain"]
+            + "/comic/"
+            + loaded_chapter["img_url_path"]
         )
-        chapter["image_urls"] = self._get_img_list(chapter_data, img_store)
 
-        yield chapter
+        for img_index in range(page_size):
+            img_url = (
+                base_url
+                + str(int(loaded_chapter["startimg"]) + img_index).zfill(4)
+                + ".jpg"
+            )
+            img_name = str(img_index).zfill(4) + ".jpg"
+            image = Image(
+                name=img_name,
+                url=img_url,
+                file_path=get_img_store(self.settings, self.name, parent_name, name),
+                http_headers=None,
+            )
+            img_list.append(image)
 
-    def _get_img_list(self, chap, img_dir_path):
-        total_img_size = int(chap["total_img_size"])
-        image_list = []
+        yield MangaChapter(
+            name=name,
+            ref_url=html.url,
+            image_urls=img_list,
+            page_size=page_size,
+            parent_id="",
+            parent_name=parent_name,
+        )
 
-        if total_img_size is None:
-            return image_list
-
-        base_url = "https://" + chap["domain"] + "/comic/" + chap["img_path"]
-
-        start_index = int(chap["startimg"])
-
-        # Make start index to zero
-        if start_index != 0:
-            start_index = 0
-
-        for img_index in range(total_img_size):
-            start_index += 1
-
-            image = Image()
-            # image["name"] = chap["pagename"]
-            image["name"] = str(img_index).zfill(4) + ".jpg"
-            image["url"] = base_url + str(start_index).zfill(4) + ".jpg"
-            image["file_path"] = img_dir_path
-            image["http_headers"] = None
-            image_list.append(image)
-
-        return image_list
-
-    def _decode(self, ciphertext):
+    def _load_chapter(self, ciphertext):
         assert isinstance(ciphertext, str)
 
-        plaintext = self._try_decrypt(ciphertext)
+        plaintext = self._decrypt(ciphertext)
 
-        mh_key = "mh_info="
-        img_key = "image_info="
+        match = re.findall(r"mh_info=(.*?);", plaintext)
 
-        mh_info = None
-        image_info = None
+        if not match:
+            return None
 
-        for obj in plaintext.split(";"):
-            if mh_info is None and mh_key in obj:
-                va_list = obj.split(mh_key)
-                mh_info = demjson.decode(va_list[1])
+        # If matched then serializing first match to original chapter dict value.
+        dict_value = demjson.decode(match[0])
 
-            if image_info is None and img_key in obj:
-                va_list = obj.split(img_key)
-                image_info = demjson.decode(va_list[1])
+        if dict_value["enc_code1"]:
+            dict_value["page_size"] = int(
+                fmt_label(self._decrypt(dict_value["enc_code1"]))
+            )
 
-        if mh_info["enc_code1"]:
-            mh_info["total_img_size"] = self._try_decrypt(mh_info["enc_code1"])
-
-        if mh_info["enc_code2"]:
-            mh_info["img_path"] = self._try_decrypt(
-                mh_info["enc_code2"],
+        if dict_value["enc_code2"]:
+            dict_value["img_url_path"] = self._decrypt(
+                dict_value["enc_code2"],
                 "fw125gjdi9ertyui",
             )
 
-        # self.logger.debug(mh_info)
-        return mh_info
+        """
+        {
+            startimg:1,
+            enc_code1:"dGEvZnplRWVIZWFnMTNPMjdCWm1EQT09",
+            mhid:"18865",
+            enc_code2:"WTl1dTAwQ2FVTnBjOGRKcmlwRERQZndSTFFkalpjNVpSYzlYTFJidExwZHJLNDZVa2pHRk16Y1BVRnpHaXpHSDl6N1hpWmR4dUszdzZmVi9xc0FDZkpobkwyWWx4ank3c0tCZ3ZDUk05c1k9",
+            mhname:"恶魔X天使 不能友好相处",
+            pageid:3259298,
+            pagename:"015 见义勇为的天使",
+            pageurl:"1/17.html",
+            readmode:3,
+            maxpreload:5,
+            defaultminline:1,
+            domain:"img.cocomanhua.com",
+            manga_size:"",
+            default_price:0,
+            price:0,
 
-    def _try_decrypt(self, ciphertext, key=None, default_key=None):
+            page_size:36,
+            img_url_path:"18865/eGJhNUxPeVN6S0pheHYyNVhmUk51NTV1ZS8xOFc0c09WUE84bG14ZE9wST0=/"
+        }
+        """
+        return dict_value
+
+    def _decrypt(self, ciphertext, key=None):
         ciphertext = base64.b64decode(ciphertext)
+        input_key = key.encode("utf-8") if key else None
 
-        # 2019/9/27: "JRUIFMVJDIWE569j"
-        # 2020/8/21 14:39:33: "fw12558899ertyui"
-        # 2021/1/8: var __READKEY = 'fw122587mkertyui';
-        key_list = ["fw122587mkertyui", "fw12558899ertyui", "JRUIFMVJDIWE569j"]
+        # var __READKEY = "JRUIFMVJDIWE569j"
+        # var __READKEY = "fw12558899ertyui"
+        # var __READKEY = 'fw122587mkertyui';
+        default_key_list = [
+            b"fw122587mkertyui",
+            b"fw12558899ertyui",
+            b"JRUIFMVJDIWE569j",
+        ]
 
-        if isinstance(default_key, str):
-            key_list.insert(0, default_key)
+        if input_key:
+            default_key_list.insert(0, input_key)
 
-        if isinstance(key, str):
-            key_list.insert(0, key)
+        for k in default_key_list:
+            # Encode key to utf8 bytes.
+            message = base64.b64decode(ciphertext)
 
-        for k in key_list:
-            plaintext = self._decrypt(ciphertext, k)
+            decryptor = Cipher(algorithms.AES(k), modes.ECB()).decryptor()
+            # PKCS7 unpadding
+            unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
 
-            if plaintext is not None:
-                return plaintext
+            plaintext = decryptor.update(message) + decryptor.finalize()
+            plaintext = unpadder.update(plaintext) + unpadder.finalize()
 
-        return ciphertext
+            if plaintext:
+                # Convert bytes to utf8 string.
+                return plaintext.decode()
 
-    def _decrypt(self, ciphertext, key):
-        if isinstance(key, str):
-            key = key.encode("utf-8")
-
-        ciphertext = base64.b64decode(ciphertext)
-
-        if isinstance(ciphertext, str):
-            ciphertext = ciphertext.encode("utf-8")
-
-        decryptor = Cipher(algorithms.AES(key), modes.ECB()).decryptor()
-
-        plaintext = decryptor.update(ciphertext) + decryptor.finalize()
-
-        plaintext = self._pkcs7_unpadding(plaintext)
-
-        # Convert bytes to utf8 string.
-        return plaintext.decode()
-
-    def _pkcs7_unpadding(self, buffer):
-        unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
-        return unpadder.update(buffer) + unpadder.finalize()
+        return ciphertext.decode()
