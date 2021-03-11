@@ -38,7 +38,6 @@ class ImagesPipeline(scrapy.pipelines.images.ImagesPipeline):
 
                 yield scrapy.Request(
                     url["url"],
-                    self.on_complete,
                     headers=url["http_headers"],
                     meta=fmt_meta(url),
                 )
