@@ -7,7 +7,7 @@
 #     https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 #     https://docs.scrapy.org/en/latest/topics/spider-middleware.html
 
-import os
+from pathlib import Path
 
 BOT_NAME = "books_scrapy"
 
@@ -72,7 +72,7 @@ DOWNLOADER_MIDDLEWARES = {
 #    'scrapy.extensions.telnet.TelnetConsole': None,
 # }
 
-IMAGES_STORE = os.path.expanduser("~") + "/Downloads"
+IMAGES_STORE = str(Path.home()) + "/Downloads"
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
