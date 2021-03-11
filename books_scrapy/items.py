@@ -9,12 +9,14 @@ import scrapy
 class Manga(scrapy.Item):
     # define the fields for your item here like:
     name = scrapy.Field()
+    alias = scrapy.Field()
     cover_image = scrapy.Field()
-    status = scrapy.Field()
+    background_image = scrapy.Field()
+    promo_image = scrapy.Field()
     authors = scrapy.Field()
+    status = scrapy.Field()
     categories = scrapy.Field()
     excerpt = scrapy.Field()
-    chapters = scrapy.Field()
     area = scrapy.Field()
     ref_url = scrapy.Field()
 
@@ -28,11 +30,10 @@ class Image(scrapy.Item):
 
 
 class MangaChapter(scrapy.Item):
-    identifier = scrapy.Field()
     name = scrapy.Field()
     ref_url = scrapy.Field()
     images = scrapy.Field()
     image_urls = scrapy.Field()
     page_size = scrapy.Field()
-    parent_id = scrapy.Field()
-    parent_name = scrapy.Field()
+    rel_m_id = scrapy.Field()
+    rel_m_title = scrapy.Field()

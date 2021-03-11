@@ -89,7 +89,9 @@ class OHManhuaSpider(scrapy.Spider):
         yield Manga(
             name=manga_name,
             alias=manga_alias,
+            background_image=None,
             cover_image=manga_cover_image,
+            promo_image=None,
             authors=manga_authors,
             status=manga_status,
             categories=manga_categories,
@@ -108,7 +110,7 @@ class OHManhuaSpider(scrapy.Spider):
             url = self.base_url + li.xpath("./a/@href").get()
 
             # TODO: Add detect to check whether chapter already downloaded.
-            yield Request(url, self.parse_chapter_page)
+            yield Request(url, self.parse_chapter_page, meta=fmt_meta(html.url))
 
     def parse_chapter_page(self, html):
         match = re.findall(r"var C_DATA= ?(.*?);", html.text)
@@ -121,10 +123,10 @@ class OHManhuaSpider(scrapy.Spider):
         if not loaded_chapter:
             return
 
-        parent_name = loaded_chapter["mhname"]
+        manga_name = loaded_chapter["mhname"]
         name = loaded_chapter["pagename"]
         page_size = loaded_chapter["page_size"]
-        img_store = get_img_store(self.settings, self.name, parent_name, name)
+        img_store = get_img_store(self.settings, self.name, manga_name, name)
 
         # Download only when `page_size` is valid
         # and the number of files in the folder `img_store` is less than page_size.
@@ -149,7 +151,7 @@ class OHManhuaSpider(scrapy.Spider):
             image = Image(
                 name=img_name,
                 url=img_url,
-                file_path=get_img_store(self.settings, self.name, parent_name, name),
+                file_path=get_img_store(self.settings, self.name, manga_name, name),
                 http_headers=None,
             )
             img_list.append(image)
@@ -159,8 +161,8 @@ class OHManhuaSpider(scrapy.Spider):
             ref_url=html.url,
             image_urls=img_list,
             page_size=page_size,
-            parent_id="",
-            parent_name=parent_name,
+            rel_m_id=revert_fmt_meta(html.meta),
+            rel_m_title=manga_name
         )
 
     def _load_chapter(self, ciphertext):
