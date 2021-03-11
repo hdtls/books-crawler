@@ -52,13 +52,17 @@ class The36MHSpider(scrapy.Spider):
             elif label == "漫画状态：":
                 manga_status = text
 
+        # TODO: Manga alias serializng if have.
         manga = Manga(
             name=manga_name,
+            alias=None,
+            background_image=None,
             cover_image=manga_cover_image,
-            status=manga_status,
+            promo_image=None,
             authors=manga_authors,
-            excerpt=manga_intro,
+            status=manga_status,
             categories=manga_categories,
+            excerpt=manga_intro,
             area=manga_area,
             ref_url=html.url,
         )
@@ -71,11 +75,10 @@ class The36MHSpider(scrapy.Spider):
             manga_chapter_ref_url = self.base_url + manga_chapter_id
 
             chapter = MangaChapter(
-                identifier=manga_chapter_id,
                 name=manga_chapter_name,
                 ref_url=manga_chapter_ref_url,
-                parent_id=html.url,
-                parent_name=manga_name,
+                rel_m_id=html.url,
+                rel_m_title=manga_name,
             )
 
             yield Request(
@@ -97,7 +100,7 @@ class The36MHSpider(scrapy.Spider):
             img_file_path = get_img_store(
                 self.settings,
                 self.name,
-                revert_fmt_meta(html.meta)["parent_name"],
+                revert_fmt_meta(html.meta)["rel_m_title"],
                 revert_fmt_meta(html.meta)["name"],
             )
             image = Image(
