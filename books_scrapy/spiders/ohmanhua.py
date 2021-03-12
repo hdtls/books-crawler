@@ -23,15 +23,6 @@ class OHManhuaSpider(scrapy.Spider):
         "https://www.cocomanhua.com/18865/1/17.html"
     ]
 
-    def start_requests(self):
-        for url in self.start_urls:
-            if "?" in url:
-                yield Request(url, self.parse)
-            elif url.endswith(".html"):
-                yield Request(url, self.parse_chapter_page)
-            elif url.endswith("/"):
-                yield Request(url, self.parse_detail_page)
-
     def parse(self, html):
         # return self.parse_detail_page(html)
         return self.parse_chapter_page(html)

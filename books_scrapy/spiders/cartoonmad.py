@@ -1,6 +1,7 @@
 import scrapy
 import os
 import re
+
 from books_scrapy.items import Image
 from books_scrapy.items import Manga
 from books_scrapy.items import MangaChapter
@@ -15,10 +16,6 @@ class CartoonMadSpider(scrapy.Spider):
     start_urls = ["https://www.cartoonmad.com/comic/8113.html"]
 
     custom_settings = {"MEDIA_ALLOW_REDIRECTS": True}
-
-    def start_requests(self):
-        for url in self.start_urls:
-            yield Request(url, self.parse)
 
     def parse(self, html):
         return self.parse_detail_page(html)

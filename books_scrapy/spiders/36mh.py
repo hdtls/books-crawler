@@ -16,8 +16,7 @@ class The36MHSpider(scrapy.Spider):
     img_base_url = "https://img001.microland-design.com"
     start_urls = [
         # "https://www.36mh.net/list/update/",
-        "https://www.36mh.net/manhua/jiesuomoshide99genvzhu/",
-        # "https://www.36mh.net/manhua/jiesuomoshide99genvzhu/790041.html#p=1",/
+        "https://www.36mh.net/manhua/weihewurenjidewodeshijie/"
     ]
 
     def parse(self, html):
