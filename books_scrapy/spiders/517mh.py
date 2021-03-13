@@ -1,12 +1,16 @@
 import base64
 import datetime
 import json
+import os
 import re
 import scrapy
 
 from books_scrapy.items import *
 from books_scrapy.utils import *
+from pathlib import Path
+from urllib.parse import urlparse
 from scrapy import Request
+
 
 class QTcmsObject:
     def __init__(
@@ -73,6 +77,7 @@ class QTcmsObject:
         self.qTcms_S_show_1 = qTcms_S_show_1
         self.qTcms_S_ifpubu = qTcms_S_ifpubu
 
+
 class The517MangaSpider(scrapy.Spider):
     name = "qtcms"
     img_base_url = None
@@ -80,24 +85,79 @@ class The517MangaSpider(scrapy.Spider):
 
     start_urls = [
         # "https://www.733.so/mh/32930/702551.html"
-        "http://www.517manhua.com/maoxian/weihewurenjidewodeshijie/1174169.html"
+        "http://www.517manhua.com/maoxian/weihewurenjidewodeshijie",
+        "http://www.517manhua.com/maoxian/weihewurenjidewodeshijie/1174169.html",
     ]
 
     def parse(self, response):
-        return self.parse_chapter_data(response)
-    
+        return self.parse_detail_data(response)
+
     def parse_detail_data(self, response):
         # TODO: Should yield return.
-        yield self.get_book_item(response)
+        manga = self.get_book_item(response)
+        assert isinstance(manga, Manga)
 
-        for chapter in self.get_book_catalog(response):
+        book_catalog = self.get_book_catalog(response)
+
+        file_path = get_img_store(self.settings, self.name, manga["name"])
+
+        if Path(file_path).exists() and len(os.listdir(file_path)) >= len(book_catalog):
+            return
+
+        for chapter in book_catalog:
+            assert isinstance(chapter, MangaChapter)
+
+            file_path = file_path + "/" + chapter["name"]
+
+            if Path(file_path).exists():
+                continue
+
             yield Request(chapter["ref_url"], self.parse_chapter_data)
 
     def get_book_item(self, response):
-        return {}
+        main = response.xpath("//div[contains(@class, 'mh-date-info')]")
+
+        name = main.xpath(
+            "./div[contains(@class, 'mh-date-info-name')]//a/text()"
+        ).get()
+        excerpt = main.xpath(
+            "./div[contains(@class, 'mh-work-introd')]//p/text()"
+        ).get()
+        authors = main.xpath(
+            "./p[contains(@class, 'works-info-tc')]//em/a/text()"
+        ).get()
+        authors = authors.split("/") if authors else None
+        status = main.xpath(
+            "./p[contains(@class, 'works-info-tc')][position()=2]/span[last()]/em/text()"
+        ).get()
+
+        return Manga(
+            name=name,
+            alias=None,
+            background_image=None,
+            cover_image=None,
+            promo_image=None,
+            authors=authors,
+            status=status,
+            excerpt=excerpt,
+            area=None,
+            ref_url=response.url,
+        )
 
     def get_book_catalog(self, response):
-        return []
+        book_catalog = []
+        for li in response.xpath("//ul[@id='mh-chapter-list-ol-0']/li"):
+            name = li.xpath("./a/p/text()").get()
+            parser = urlparse(response.url)
+            ref_url = parser.netloc + fmt_url_path(
+                fmt_label(li.xpath("./a/@href").get())
+            )
+
+            chapter = MangaChapter(
+                name=name, ref_url=ref_url, rel_m_id=response.url, rel_m_title=name
+            )
+            book_catalog.append(chapter)
+        return book_catalog
 
     def parse_chapter_data(self, response):
         html_script_tag = response.xpath(
@@ -105,7 +165,7 @@ class The517MangaSpider(scrapy.Spider):
         ).get()
 
         qTcms_S_m_murl_e = eval_js_variable("qTcms_S_m_murl_e", html_script_tag)
-        
+
         if not qTcms_S_m_murl_e:
             self.logger.error("无法解析章节...")
             return
@@ -146,8 +206,12 @@ class The517MangaSpider(scrapy.Spider):
             qTcms_m_moban=eval_js_variable("qTcms_m_moban", html_script_tag),
             qTcms_m_indexurl=eval_js_variable("qTcms_m_indexurl", html_script_tag),
             qTcms_m_webname=eval_js_variable("qTcms_m_webname", html_script_tag),
-            qTcms_m_weburl=fmt_url_domain(eval_js_variable("qTcms_m_weburl", html_script_tag)),
-            qTcms_m_playurl=fmt_url_path(eval_js_variable("qTcms_m_playurl", html_script_tag)),
+            qTcms_m_weburl=fmt_url_domain(
+                eval_js_variable("qTcms_m_weburl", html_script_tag)
+            ),
+            qTcms_m_playurl=fmt_url_path(
+                eval_js_variable("qTcms_m_playurl", html_script_tag)
+            ),
             qTcms_m_url=fmt_url_path(eval_js_variable("qTcms_m_url", html_script_tag)),
             qTcms_S_show_1=eval_js_variable("qTcms_S_show_1", html_script_tag),
             qTcms_S_ifpubu=eval_js_variable("qTcms_S_ifpubu", html_script_tag),
@@ -155,11 +219,18 @@ class The517MangaSpider(scrapy.Spider):
 
         image_urls = []
 
-        orig_url_list = base64.b64decode(qTcms_S_m_murl_e).decode().split("$qingtiandy$")
+        orig_url_list = (
+            base64.b64decode(qTcms_S_m_murl_e).decode().split("$qingtiandy$")
+        )
+
+        file_path = get_img_store(self.settings, self.name, qTcms_obj.qTcms_S_m_name, qTcms_obj.qTcms_S_m_playm)
+
+        if Path(file_path).exists() and len(os.listdir(file_path)) >= len(orig_url_list):
+            return
 
         for index, orig_url in enumerate(orig_url_list):
-            img_url = self.parse_img_url(orig_url, qTcms_obj)
             img_name = str(index).zfill(3) + ".jpg"
+            img_url = self.parse_img_url(orig_url, qTcms_obj)
             img = Image(
                 name=img_name,
                 url=img_url,
@@ -167,14 +238,14 @@ class The517MangaSpider(scrapy.Spider):
                 http_headers=None,
             )
             image_urls.append(img)
-        
+
         chapter = MangaChapter(
             name=qTcms_obj.qTcms_S_m_playm,
             ref_url=response.url,
             image_urls=image_urls,
             page_size=len(image_urls),
             rel_m_id=qTcms_obj.qTcms_m_weburl + qTcms_obj.qTcms_m_url,
-            rel_m_title=qTcms_obj.qTcms_S_m_name
+            rel_m_title=qTcms_obj.qTcms_S_m_name,
         )
 
         yield chapter
@@ -182,7 +253,9 @@ class The517MangaSpider(scrapy.Spider):
     def parse_img_url(self, orig_url, qTcms_obj):
         if orig_url.startswith("/"):
             # If `orig_url` is image file path, we only need provide image server address.
-            img_base_url = self.img_base_url or eval_js_variable("qTcms_m_weburl", hmtl.text)
+            img_base_url = self.img_base_url or eval_js_variable(
+                "qTcms_m_weburl", hmtl.text
+            )
             return img_base_url + orig_url
         elif qTcms_obj.qTcms_Pic_m_if != "2":
             orig_url = (
