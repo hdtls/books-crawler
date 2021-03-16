@@ -7,6 +7,7 @@ import scrapy
 
 from books_scrapy.items import *
 from books_scrapy.utils import *
+
 from pathlib import Path
 from urllib.parse import urlparse
 from scrapy import Request
@@ -79,69 +80,60 @@ class QTcmsObject:
 
 
 class The517MangaSpider(scrapy.Spider):
-    name = "qtcms"
+    name = "www.517manhua.com"
     img_base_url = None
     qTcms_m_indexurl = "http://images.yiguahai.com"
 
     start_urls = [
-        # "https://www.733.so/mh/32930/702551.html"
-        "http://www.517manhua.com/maoxian/weihewurenjidewodeshijie",
-        "http://www.517manhua.com/maoxian/weihewurenjidewodeshijie/1174169.html",
+        "http://www.517manhua.com/hougong/nvzixueyuandenansheng/",
     ]
 
     def parse(self, response):
         return self.parse_detail_data(response)
-
+    
     def parse_detail_data(self, response):
-        # TODO: Should yield return.
-        manga = self.get_book_item(response)
-        assert isinstance(manga, Manga)
+        book = self.get_book_item(response)
+        yield book
 
         book_catalog = self.get_book_catalog(response)
 
-        file_path = get_img_store(self.settings, self.name, manga["name"])
-
+        file_path = get_img_store(self.settings, self.name, book["name"])
         if Path(file_path).exists() and len(os.listdir(file_path)) >= len(book_catalog):
             return
-
+        
         for chapter in book_catalog:
-            assert isinstance(chapter, MangaChapter)
-
             file_path = file_path + "/" + chapter["name"]
-
-            if Path(file_path).exists():
-                continue
-
+            
             yield Request(chapter["ref_url"], self.parse_chapter_data)
-
+            
     def get_book_item(self, response):
         main = response.xpath("//div[contains(@class, 'mh-date-info')]")
 
         name = main.xpath(
             "./div[contains(@class, 'mh-date-info-name')]//a/text()"
         ).get()
+        
+        cover_image = Image(url=response.xpath("//div[contains(@class, 'mh-date-bgpic')]//img/@src").get())
+
         excerpt = main.xpath(
-            "./div[contains(@class, 'mh-work-introd')]//p/text()"
+            "./div[contains(@class, 'work-introd')]//p/text()"
         ).get()
+
         authors = main.xpath(
             "./p[contains(@class, 'works-info-tc')]//em/a/text()"
         ).get()
         authors = authors.split("/") if authors else None
+        
         status = main.xpath(
             "./p[contains(@class, 'works-info-tc')][position()=2]/span[last()]/em/text()"
         ).get()
 
         return Manga(
-            name=name,
-            alias=None,
-            background_image=None,
-            cover_image=None,
-            promo_image=None,
-            authors=authors,
-            status=status,
-            excerpt=excerpt,
-            area=None,
-            ref_url=response.url,
+            authors,
+            cover_image,
+            excerpt,
+            name,
+            response.url
         )
 
     def get_book_catalog(self, response):
@@ -152,10 +144,7 @@ class The517MangaSpider(scrapy.Spider):
             ref_url = parser.netloc + fmt_url_path(
                 fmt_label(li.xpath("./a/@href").get())
             )
-
-            chapter = MangaChapter(
-                name=name, ref_url=ref_url, rel_m_id=response.url, rel_m_title=name
-            )
+            chapter = MangaChapter(name, ref_url, response.url, name)
             book_catalog.append(chapter)
         return book_catalog
 
@@ -223,9 +212,16 @@ class The517MangaSpider(scrapy.Spider):
             base64.b64decode(qTcms_S_m_murl_e).decode().split("$qingtiandy$")
         )
 
-        file_path = get_img_store(self.settings, self.name, qTcms_obj.qTcms_S_m_name, qTcms_obj.qTcms_S_m_playm)
+        file_path = get_img_store(
+            self.settings,
+            self.name,
+            qTcms_obj.qTcms_S_m_name,
+            qTcms_obj.qTcms_S_m_playm,
+        )
 
-        if Path(file_path).exists() and len(os.listdir(file_path)) >= len(orig_url_list):
+        if Path(file_path).exists() and len(os.listdir(file_path)) >= len(
+            orig_url_list
+        ):
             return
 
         for index, orig_url in enumerate(orig_url_list):
