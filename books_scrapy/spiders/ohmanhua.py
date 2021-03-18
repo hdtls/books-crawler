@@ -4,15 +4,12 @@ import scrapy
 import re
 import os
 
-from books_scrapy.items import Manga
-from books_scrapy.items import MangaChapter
-from books_scrapy.items import Image
+from books_scrapy.items import *
 from books_scrapy.utils import *
 from books_scrapy.spiders import Spider
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from pathlib import Path
-from scrapy import Request
 
 
 class OHManhuaSpider(Spider):
@@ -122,12 +119,6 @@ class OHManhuaSpider(Spider):
         manga_name = loaded_chapter["mhname"]
         name = loaded_chapter["pagename"]
         page_size = loaded_chapter["page_size"]
-        img_store = get_img_store(self.settings, self.name, manga_name, name)
-
-        # Download only when `page_size` is valid
-        # and the number of files in the folder `img_store` is less than page_size.
-        if not page_size or len(os.listdir(img_store)) >= page_size:
-            return
 
         image_urls = []
         base_url = (
@@ -156,7 +147,6 @@ class OHManhuaSpider(Spider):
             ref_url=response.url,
             image_urls=image_urls,
             page_size=page_size,
-            rel_m_id=revert_fmt_meta(response.meta),
             rel_m_title=manga_name,
         )
 
