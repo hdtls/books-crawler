@@ -8,103 +8,108 @@ from books_scrapy.items import Manga
 from books_scrapy.items import MangaChapter
 from books_scrapy.items import Image
 from books_scrapy.utils import *
+from books_scrapy.spiders import Spider
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from pathlib import Path
 from scrapy import Request
 
 
-class OHManhuaSpider(scrapy.Spider):
+class OHManhuaSpider(Spider):
     name = "ohmanhua"
     base_url = "https://www.cocomanhua.com"
     start_urls = [
-        # "https://www.cocomanhua.com/show?orderBy=update",
-        # "https://www.cocomanhua.com/18865/",
-        "https://www.cocomanhua.com/18865/1/17.html"
+        "https://www.cocomanhua.com/10129/",
     ]
 
-    def parse(self, html):
-        # return self.parse_detail_page(html)
-        return self.parse_chapter_page(html)
-
-    def parse_detail_page(self, html):
-        # manga_name = html.css("dd.fed-deta-content h1::text").get()
-        manga_name = html.xpath(
+    def get_book_info(self, response):
+        # name = html.css("dd.fed-deta-content h1::text").get()
+        name = response.xpath(
             "//dd[contains(@class, 'fed-deta-content')]/h1/text()"
         ).get()
 
-        img_name = "cover.jpg"
         # img_url = html.css("dt.fed-deta-images a::attr(data-original)").get()
-        img_url = html.xpath(
+        img_url = response.xpath(
             "//dt[contains(@class, 'fed-deta-images')]/a/@data-original"
         ).get()
-        img_file_path = get_img_store(self.settings, self.name, manga_name)
+        file_path = get_img_store(self.settings, self.name, name)
 
-        manga_cover_image = Image(
-            name=img_name, url=img_url, file_path=img_file_path, http_headers=None
-        )
+        cover_image = Image(url=img_url, file_path=file_path)
 
-        manga_area = "中国大陆"
+        area = None
+        alias = None
+        status = None
+        authors = []
+        categories = None
+        excerpt = ""
         # html.css("dd.fed-deta-content ul li")
-        for li in html.xpath("//dd[contains(@class, 'fed-deta-content')]/ul/li"):
+        for li in response.xpath("//dd[contains(@class, 'fed-deta-content')]/ul/li"):
             # label = li.css("span::text").get()
             label = li.xpath(".//span/text()").get()
             # text = li.css("a::text").get()
             text = li.xpath("./a/text()").get()
             if label == "别名":
                 # There is an empty " " in results that should be ignored.
-                manga_alias = list(
+                alias = list(
                     filter(lambda str: str != " ", li.xpath("./text()").getall())
                 )
-                manga_alias = fmt_label(manga_alias[0]) if len(manga_alias) >= 1 else ""
-                manga_alias = manga_alias.split(",")
+                alias = fmt_label(alias[0]) if len(alias) >= 1 else ""
+                alias = alias.split(",")
             elif label == "状态":
-                # manga_status = text
-                manga_status = text
+                # status = text
+                status = text
             elif label == "作者":
                 if text.startswith("作者:"):
                     text = fmt_label(text[3:])
                 if " " in text:
-                    manga_authors = text.split(" ")
+                    authors = text.split(" ")
                 elif "x" in text:
-                    manga_authors = text.split("x")
+                    authors = text.split("x")
                 else:
-                    manga_authors = [text]
+                    authors = [text]
             elif label == "类别":
-                # manga_categories = li.css("a::text").getall()
-                manga_categories = li.xpath("./a/text()").getall()
+                # categories = li.css("a::text").getall()
+                categories = li.xpath("./a/text()").getall()
             elif label == "简介":
-                # manga_intro = li.css("div::text").get()
-                manga_intro = li.xpath("./div/text()").get()
+                # excerpt = li.css("div::text").get()
+                excerpt = li.xpath("./div/text()").get()
 
-        yield Manga(
-            name=manga_name,
-            alias=manga_alias,
-            background_image=None,
-            cover_image=manga_cover_image,
-            promo_image=None,
-            authors=manga_authors,
-            status=manga_status,
-            categories=manga_categories,
-            excerpt=manga_intro,
-            area=manga_area,
-            ref_url=html.url,
+        return Manga(
+            name=name,
+            alias=alias,
+            cover_image=cover_image,
+            authors=authors,
+            status=status,
+            categories=categories,
+            excerpt=excerpt,
+            area=area,
+            ref_url=response.url,
         )
+
+    def get_book_catalog(self, response):
+        book_catalog = []
 
         # Capter list serializing.
         # html.css("div.all_data_list li")
-        for li in html.xpath("//div[contains(@class, 'all_data_list')]//li"):
+        for li in response.xpath("//div[contains(@class, 'all_data_list')]//li"):
             # name = fmt_label(li.css("a::text").get()
             name = fmt_label(li.xpath("./a/text()").get())
 
             # url = self.base_url + li.css("a::attr(href)").get()
             url = self.base_url + li.xpath("./a/@href").get()
 
-            # TODO: Add detect to check whether chapter already downloaded.
-            yield Request(url, self.parse_chapter_page, meta=fmt_meta(html.url))
+            entry = MangaChapter(
+                name=name,
+                ref_url=url,
+                rel_m_id=response.url,
+                image_urls=[],
+            )
+            book_catalog.append(entry)
 
-    def parse_chapter_page(self, html):
-        match = re.findall(r"var C_DATA= ?(.*?);", html.text)
+        return book_catalog
+
+    def parse_chapter_data(self, response):
+        match = re.findall(r"var C_DATA= ?(.*?);", response.text)
 
         if len(match) <= 0:
             return
@@ -124,7 +129,7 @@ class OHManhuaSpider(scrapy.Spider):
         if not page_size or len(os.listdir(img_store)) >= page_size:
             return
 
-        img_list = []
+        image_urls = []
         base_url = (
             "https://"
             + loaded_chapter["domain"]
@@ -143,17 +148,16 @@ class OHManhuaSpider(scrapy.Spider):
                 name=img_name,
                 url=img_url,
                 file_path=get_img_store(self.settings, self.name, manga_name, name),
-                http_headers=None,
             )
-            img_list.append(image)
+            image_urls.append(image)
 
         yield MangaChapter(
             name=name,
-            ref_url=html.url,
-            image_urls=img_list,
+            ref_url=response.url,
+            image_urls=image_urls,
             page_size=page_size,
-            rel_m_id=revert_fmt_meta(html.meta),
-            rel_m_title=manga_name
+            rel_m_id=revert_fmt_meta(response.meta),
+            rel_m_title=manga_name,
         )
 
     def _load_chapter(self, ciphertext):
