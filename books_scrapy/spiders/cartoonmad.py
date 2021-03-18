@@ -5,76 +5,68 @@ import re
 from books_scrapy.items import Image
 from books_scrapy.items import Manga
 from books_scrapy.items import MangaChapter
+from books_scrapy.spiders import Spider
 from books_scrapy.utils import *
 from scrapy import Request
 
 
-class CartoonMadSpider(scrapy.Spider):
+class CartoonMadSpider(Spider):
     name = "cartoonmad"
     base_url = "https://www.cartoonmad.com"
     img_base_url = "https://www.cartoonmad.com/comic/comicpic.asp?file=/"
     start_urls = ["https://www.cartoonmad.com/comic/8113.html"]
 
-    custom_settings = {"MEDIA_ALLOW_REDIRECTS": True}
+    def get_book_info(self, response):
+        name = response.css("title::text").get()[:-14].strip()
 
-    def parse(self, html):
-        return self.parse_detail_page(html)
+        tr_list = response.css("td:nth-child(2) tr:nth-child(4) tr:nth-child(2)")
 
-    def parse_detail_page(self, html):
-        manga_name = html.css("title::text").get()[:-14].strip()
-
-        tr_list = html.css("td:nth-child(2) tr:nth-child(4) tr:nth-child(2)")
-
-        img_name = "cover.jpg"
         img_url = self.base_url + tr_list[1].css("img::attr(src)").get()
-        img_file_path = get_img_store(self.settings, self.name, manga_name)
+        file_path = get_img_store(self.settings, self.name, name)
 
-        manga_cover_image = Image(name=img_name, url=img_url, file_path=img_file_path)
+        cover_image = Image(url=img_url, file_path=file_path)
 
-        manga_authors = (
+        authors = (
             tr_list.css("tr:nth-child(5) td::text").get().strip()[6:].split(",")
         )
-        manga_categories = tr_list.css("tr:nth-child(3) a::text").get()
+        categories = tr_list.css("tr:nth-child(3) a::text").get()
         # manga_excerpt = html.css("fieldset td::text").get().strip()
-        manga_excerpt = fmt_meta(fmt_label(html.xpath("//fieldset//td/text()").get()))
+        excerpt = fmt_meta(fmt_label(response.xpath("//fieldset//td/text()").get()))
 
-        yield Manga(
-            name=manga_name,
-            alias=None,
-            background_image=None,
-            cover_image=manga_cover_image,
-            promo_image=None,
-            authors=manga_authors,
-            status=None,
-            categories=manga_categories,
-            excerpt=manga_excerpt,
-            area=None,
-            ref_url=html.url,
+        return Manga(
+            name=name,
+            cover_image=cover_image,
+            authors=authors,
+            categories=categories,
+            excerpt=excerpt,
+            ref_url=response.url,
         )
 
-        # Table of contents
-        # html.css("fieldset")[1].css("tr > td")
-        fieldset_list = html.xpath("//fieldset")
+    def get_book_catalog(self, response):
+        book_catalog = []
+
+        # response.css("fieldset")[1].css("tr > td")
+        fieldset_list = response.xpath("//fieldset")
         if not fieldset_list:
-            return
+            return book_catalog
 
         # td_list = fieldset_list[1].css("tr > td")
         td_list = fieldset_list[1].xpath(".//tr/td")
         for index, td in enumerate(td_list):
-            # manga_chapter_name = td.css("a::text").get()
-            manga_chapter_name = td.xpath(".//a/text()").get()
+            # name = td.css("a::text").get()
+            name = td.xpath(".//a/text()").get()
             
             # Skip empty html tag.
-            # if not (td.css("a::attr(href)") and manga_chapter_name):
-            if not (td.xpath(".//a/@href") and manga_chapter_name):
+            # if not (td.css("a::attr(href)") and name):
+            if not (td.xpath(".//a/@href") and name):
                 continue
 
             try:
-                # manga_chapter_name.split(" ")[1]
+                # name.split(" ")[1]
                 page_size = int(td.xpath(".//font/text()").get()[1:-2])
 
                 # Get images store from settings.
-                img_store = get_img_store(self.settings, self.name, manga_name, manga_chapter_name)
+                img_store = get_img_store(self.settings, self.name, manga_name, name)
 
                 # Check whether file exists at `path` and file size equal to `c_page_size` to
                 # skip duplicate download operation.
@@ -84,23 +76,21 @@ class CartoonMadSpider(scrapy.Spider):
                 ref_url = self.base_url + td.xpath(".//a/@href").get()
 
                 chapter = MangaChapter(
-                    name=manga_chapter_name,
+                    name=name,
                     ref_url=ref_url,
                     page_size=page_size,
-                    rel_m_id=html.url,
+                    rel_m_id=response.url,
                     rel_m_title=manga_name
                 )
 
-                yield Request(
-                    ref_url,
-                    meta=fmt_meta(chapter),
-                    callback=self.parse_chapter_page,
-                )
+                book_catalog.append(chapter)
             except:
                 # TODO: Error handling。
                 continue
+        
+        return book_catalog
 
-    def parse_chapter_page(self, html):
+    def parse_chapter_data(self, html):
         # For now we only support asp hosted chapter.
         # urls = html.css("img::attr(src)").getall()
         original_img_urls = html.xpath("//img/@src").getall()
@@ -112,7 +102,7 @@ class CartoonMadSpider(scrapy.Spider):
 
         img_store = get_img_store(self.settings, self.name, chapter["rel_m_title"], chapter["name"])
 
-        image_list = []
+        image_urls = []
         for page in range(1, chapter["page_size"] + 1):
             img_name = str(page).zfill(4) + ".jpg"
             img_url =  filtered_img_urls[0]
@@ -141,8 +131,8 @@ class CartoonMadSpider(scrapy.Spider):
                 http_headers=http_headers,
             )
 
-            image_list.append(image)
+            image_urls.append(image)
 
-        chapter["image_urls"] = image_list
+        chapter.image_urls = image_urls
 
         yield chapter
