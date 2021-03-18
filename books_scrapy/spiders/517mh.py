@@ -7,40 +7,22 @@ import scrapy
 
 from books_scrapy.items import *
 from books_scrapy.utils import *
+from books_scrapy.spiders import Spider
 
 from pathlib import Path
 from urllib.parse import urlparse
 from scrapy import Request
 
 
-class The517MangaSpider(scrapy.Spider):
+class The517MangaSpider(Spider):
     name = "www.517manhua.com"
     img_base_url = None
     qTcms_m_indexurl = "http://images.yiguahai.com"
-
     start_urls = [
         "http://www.517manhua.com/hougong/nvzixueyuandenansheng/",
     ]
 
-    def parse(self, response):
-        return self.parse_detail_data(response)
-
-    def parse_detail_data(self, response):
-        book = self.get_book_item(response)
-        yield book
-
-        book_catalog = self.get_book_catalog(response)
-
-        file_path = get_img_store(self.settings, self.name, book["name"])
-        if Path(file_path).exists() and len(os.listdir(file_path)) >= len(book_catalog):
-            return
-
-        for chapter in book_catalog:
-            file_path = file_path + "/" + chapter["name"]
-
-            yield Request(chapter["ref_url"], self.parse_chapter_data)
-
-    def get_book_item(self, response):
+    def get_book_info(self, response):
         main = response.xpath("//div[contains(@class, 'mh-date-info')]")
 
         name = main.xpath(
