@@ -5,32 +5,19 @@ import json
 
 from books_scrapy.items import *
 from books_scrapy.utils import *
+from books_scrapy.spiders import Spider
 from scrapy import Request
 
 
-class The36MHSpider(scrapy.Spider):
+class The36MHSpider(Spider):
     name = "36mh"
     base_url = "https://www.36mh.net"
     img_base_url = "https://img001.microland-design.com"
     start_urls = [
-        # "https://www.36mh.net/list/update/",
         "https://www.36mh.net/manhua/nvzixueyuandenansheng/"
     ]
 
-    def parse(self, response):
-        return self.parse_detail_data(response)
-
-    def parse_detail_data(self, response):
-        yield self.get_book_item(response)
-
-        book_catalog = self.get_book_catalog(response)
-
-        for chapter in book_catalog:
-            yield Request(
-                chapter.ref_url, self.parse_chapter_data, meta=fmt_meta(chapter)
-            )
-
-    def get_book_item(self, response):
+    def get_book_info(self, response):
         name = response.xpath("//div[contains(@class, 'book-title')]//span/text()").get()
         
         excerpt = fmt_label(response.xpath("//div[@id='intro-all']//p/text()").get())
