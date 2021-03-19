@@ -14,9 +14,9 @@ BOT_NAME = "books_scrapy"
 SPIDER_MODULES = ["books_scrapy.spiders"]
 NEWSPIDER_MODULE = "books_scrapy.spiders"
 
-FEED_EXPORT_ENCODING = 'utf-8'
+FEED_EXPORT_ENCODING = "utf-8"
 
-# LOG_LEVEL = "ERROR"
+LOG_LEVEL = "DEBUG"
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 # USER_AGENT = 'books_scrapy (+http://www.yourdomain.com)'
@@ -32,7 +32,7 @@ CONCURRENT_REQUESTS = 32
 # See also autothrottle settings and docs
 DOWNLOAD_DELAY = 0.5
 # The download delay setting will honor only one of:
-CONCURRENT_REQUESTS_PER_DOMAIN = 32
+CONCURRENT_REQUESTS_PER_DOMAIN = 16
 # CONCURRENT_REQUESTS_PER_IP = 16
 
 # Disable cookies (enabled by default)
@@ -92,5 +92,5 @@ HTTPCACHE_ENABLED = True
 # HTTPCACHE_EXPIRATION_SECS = 0
 HTTPCACHE_DIR = "httpcache"
 # HTTPCACHE_IGNORE_HTTP_CODES = []
-HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
+HTTPCACHE_STORAGE = "scrapy.extensions.httpcache.FilesystemCacheStorage"
 # HTTPCACHE_STORAGE = "scrapy_splash.SplashAwareFSCacheStorage"
