@@ -13,13 +13,13 @@ class The36MHSpider(Spider):
     name = "www.36mh.net"
     base_url = "https://www.36mh.net"
     img_base_url = "https://img001.microland-design.com"
-    start_urls = [
-        "https://www.36mh.net/manhua/nvzixueyuandenansheng/"
-    ]
+    start_urls = ["https://www.36mh.net/manhua/nvzixueyuandenansheng/"]
 
     def get_book_info(self, response):
-        name = response.xpath("//div[contains(@class, 'book-title')]//span/text()").get()
-        
+        name = response.xpath(
+            "//div[contains(@class, 'book-title')]//span/text()"
+        ).get()
+
         excerpt = fmt_label(response.xpath("//div[@id='intro-all']//p/text()").get())
 
         cover_image = Image(
@@ -59,15 +59,14 @@ class The36MHSpider(Spider):
         book_catalog = []
 
         for li in response.xpath("//ul[@id='chapter-list-4']/li"):
-            manga_chapter_id = fmt_label(li.xpath("./a/@href").get())
-            manga_chapter_name = fmt_label(li.xpath(".//span/text()").get())
-            manga_chapter_ref_url = self.base_url + manga_chapter_id
+            name = fmt_label(li.xpath(".//span/text()").get())
+            ref_url = self.base_url + fmt_label(li.xpath("./a/@href").get())
 
             chapter = MangaChapter(
-                name=manga_chapter_name,
-                ref_url=manga_chapter_ref_url,
+                name=name,
+                ref_url=ref_url,
                 rel_m_id=response.url,
-                rel_m_title=manga_name,
+                image_urls=[],
             )
 
             book_catalog.append(chapter)
@@ -82,7 +81,13 @@ class The36MHSpider(Spider):
         if not (img_name_list and path):
             return
 
-        chapter = revert_fmt_meta(response.meta)
+        manga_name = response.xpath(
+            "//div[contains(@class, 'w996 title pr')]/h1/a/text()"
+        ).get()
+
+        name = response.xpath(
+            "//div[contains(@class, 'w996 title pr')]/h2/text()"
+        ).get()
 
         image_urls = []
 
@@ -92,14 +97,16 @@ class The36MHSpider(Spider):
             file_path = get_img_store(
                 self.settings,
                 self.name,
-                chapter.rel_m_title,
-                chapter.name,
+                manga_name,
+                name,
             )
-            image = Image(
-                url=img_url, name=img_name, file_path=file_path
-            )
+            image = Image(url=img_url, name=img_name, file_path=file_path)
             image_urls.append(image)
 
-        chapter.image_urls = image_urls
-
-        yield chapter
+        yield MangaChapter(
+            name=name,
+            ref_url=response.url,
+            image_urls=image_urls,
+            page_size=len(image_urls),
+            rel_m_title=manga_name,
+        )
