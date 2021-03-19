@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 class OHManhuaSpider(Spider):
-    name = "ohmanhua"
+    name = "www.cocomanhua.com"
     base_url = "https://www.cocomanhua.com"
     start_urls = [
         "https://www.cocomanhua.com/10129/",

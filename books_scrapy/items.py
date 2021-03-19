@@ -7,6 +7,9 @@ import scrapy
 
 from dataclasses import dataclass
 from typing import Optional
+from typing import List
+
+__all__ = ["Image", "Manga", "MangaChapter"]
 
 
 @dataclass
@@ -20,7 +23,7 @@ class Image:
 @dataclass
 class Manga:
     # define the fields for your item here like:
-    authors: list[str]
+    authors: List[str]
     cover_image: Image
     excerpt: str
     name: str
@@ -30,20 +33,17 @@ class Manga:
     background_image: Optional[Image] = None
     promo_image: Optional[Image] = None
     status: Optional[str] = None
-    categories: Optional[list[str]] = None
+    categories: Optional[List[str]] = None
 
 
 @dataclass
 class MangaChapter:
     name: str
     ref_url: str
-    rel_m_id: str
-    rel_m_title: str
-    image_urls: list[Image]
-
-    @property
-    def page_size(self):
-        return len(self.image_urls)
+    image_urls: List[Image]
+    page_size: int = 0
+    rel_m_id: Optional[str] = None
+    rel_m_title: Optional[str] = None
 
 
 @dataclass
