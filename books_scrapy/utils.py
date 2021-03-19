@@ -38,7 +38,7 @@ def get_img_store(settings, rt, mid, last=None):
 
 
 def eval_js_variable(label, text):
-    match = re.findall(r"var %s=(.*);" % (label), text)
+    match = re.findall(r"var %s ?= ?(.*?);" % (label), text)
     if not match:
         return None
     return json.loads(match[0])
