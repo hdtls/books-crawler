@@ -11,7 +11,7 @@ from scrapy import Request
 
 
 class CartoonMadSpider(Spider):
-    name = "cartoonmad"
+    name = "www.cartoonmad.com"
     base_url = "https://www.cartoonmad.com"
     img_base_url = "https://www.cartoonmad.com/comic/comicpic.asp?file=/"
     start_urls = ["https://www.cartoonmad.com/comic/8113.html"]

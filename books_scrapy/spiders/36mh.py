@@ -10,7 +10,7 @@ from scrapy import Request
 
 
 class The36MHSpider(Spider):
-    name = "36mh"
+    name = "www.36mh.net"
     base_url = "https://www.36mh.net"
     img_base_url = "https://img001.microland-design.com"
     start_urls = [
