@@ -6,6 +6,7 @@ import re
 import scrapy
 
 from books_scrapy.items import *
+from books_scrapy.items import QTcmsObject
 from books_scrapy.utils import *
 from books_scrapy.spiders import Spider
 
@@ -51,7 +52,7 @@ class The517MangaSpider(Spider):
             cover_image=cover_image,
             excerpt=excerpt,
             name=name,
-            ref_url=ref_url,
+            ref_url=response.url,
         )
 
     def get_book_catalog(self, response):
@@ -59,15 +60,16 @@ class The517MangaSpider(Spider):
         for li in response.xpath("//ul[@id='mh-chapter-list-ol-0']/li"):
             name = li.xpath("./a/p/text()").get()
             parser = urlparse(response.url)
-            ref_url = parser.netloc + fmt_url_path(
-                fmt_label(li.xpath("./a/@href").get())
+            ref_url = (
+                (parser.scheme or "http")
+                + "://"
+                + parser.netloc
+                + fmt_url_path(fmt_label(li.xpath("./a/@href").get()))
             )
 
             chapter = MangaChapter(
                 name=name,
                 ref_url=ref_url,
-                rel_m_id=rel_m_id,
-                rel_m_title=rel_m_title,
                 image_urls=[],
             )
 
@@ -179,7 +181,8 @@ class The517MangaSpider(Spider):
                     qTcms_obj.qTcms_S_m_mhttpurl
                 ).decode()
                 return (
-                    qTcms_obj.qTcms_m_indexurl
+                    (self.qTcms_m_indexurl + "/"
+                    or qTcms_obj.qTcms_m_indexurl)
                     + "statics/pic/?p="
                     + orig_url
                     + "&picid="
