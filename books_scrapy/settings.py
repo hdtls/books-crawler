@@ -11,7 +11,10 @@ from pathlib import Path
 
 BOT_NAME = "books_scrapy"
 
-SPIDER_MODULES = ["books_scrapy.spiders"]
+SPIDER_MODULES = [
+    "books_scrapy.spiders",
+    "books_scrapy.spiders.manga",
+]
 NEWSPIDER_MODULE = "books_scrapy.spiders"
 
 FEED_EXPORT_ENCODING = "utf-8"
