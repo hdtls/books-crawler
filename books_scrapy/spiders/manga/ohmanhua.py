@@ -146,7 +146,6 @@ class OHManhuaSpider(Spider):
             ref_url=response.url,
             image_urls=image_urls,
             page_size=page_size,
-            rel_m_title=manga_name,
         )
 
     def _load_chapter(self, ciphertext):
