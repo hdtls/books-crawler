@@ -107,5 +107,4 @@ class The36MHSpider(Spider):
             ref_url=response.url,
             image_urls=image_urls,
             page_size=len(image_urls),
-            rel_m_title=manga_name,
         )

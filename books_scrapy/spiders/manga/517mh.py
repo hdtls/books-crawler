@@ -159,7 +159,6 @@ class The517MangaSpider(Spider):
             name=qTcms_obj.qTcms_S_m_playm,
             ref_url=response.url,
             image_urls=image_urls,
-            rel_m_title=qTcms_obj.qTcms_S_m_name,
         )
 
         yield chapter
