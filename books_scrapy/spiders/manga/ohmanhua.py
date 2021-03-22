@@ -98,7 +98,6 @@ class OHManhuaSpider(Spider):
             entry = MangaChapter(
                 name=name,
                 ref_url=url,
-                rel_m_id=response.url,
                 image_urls=[],
             )
             book_catalog.append(entry)

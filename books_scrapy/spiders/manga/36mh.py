@@ -65,7 +65,6 @@ class The36MHSpider(Spider):
             chapter = MangaChapter(
                 name=name,
                 ref_url=ref_url,
-                rel_m_id=response.url,
                 image_urls=[],
             )
 

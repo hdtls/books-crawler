@@ -55,7 +55,7 @@ class The517MangaSpider(Spider):
             ref_url=response.url,
         )
 
-    def get_book_catalog(self, response):
+    def get_book_catalog(self, fp, response):
         book_catalog = []
         for li in response.xpath("//ul[@id='mh-chapter-list-ol-0']/li"):
             name = li.xpath("./a/p/text()").get()
@@ -69,6 +69,7 @@ class The517MangaSpider(Spider):
 
             chapter = MangaChapter(
                 name=name,
+                p_fp=fp,
                 ref_url=ref_url,
                 image_urls=[],
             )
@@ -158,7 +159,6 @@ class The517MangaSpider(Spider):
             name=qTcms_obj.qTcms_S_m_playm,
             ref_url=response.url,
             image_urls=image_urls,
-            rel_m_id=qTcms_obj.qTcms_m_weburl + qTcms_obj.qTcms_m_url,
             rel_m_title=qTcms_obj.qTcms_S_m_name,
         )
 
