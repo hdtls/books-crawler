@@ -79,7 +79,6 @@ class CartoonMadSpider(Spider):
                     name=name,
                     ref_url=ref_url,
                     page_size=page_size,
-                    rel_m_id=response.url,
                     rel_m_title=manga_name
                 )
 
