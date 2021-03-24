@@ -17,9 +17,8 @@ class CartoonMadSpider(Spider):
         tr_list = response.css("td:nth-child(2) tr:nth-child(4) tr:nth-child(2)")
 
         img_url = self.base_url + tr_list[1].css("img::attr(src)").get()
-        file_path = get_img_store(self.settings, self.name, name)
 
-        cover_image = Image(url=img_url, file_path=file_path)
+        cover_image = Image(url=img_url)
 
         authors = tr_list.css("tr:nth-child(5) td::text").get().strip()[6:].split(",")
         categories = tr_list.css("tr:nth-child(3) a::text").get()
