@@ -26,9 +26,8 @@ class OHManhuaSpider(Spider):
         img_url = response.xpath(
             "//dt[contains(@class, 'fed-deta-images')]/a/@data-original"
         ).get()
-        file_path = get_img_store(self.settings, self.name, name)
 
-        cover_image = Image(url=img_url, file_path=file_path)
+        cover_image = Image(url=img_url)
 
         area = None
         alias = None

@@ -17,10 +17,7 @@ class The36MHSpider(Spider):
         excerpt = fmt_label(response.xpath("//div[@id='intro-all']//p/text()").get())
 
         cover_image = Image(
-            url=response.xpath(
-                "//div[contains(@class, 'book-cover')]/p/img/@src"
-            ).get(),
-            file_path=get_img_store(self.settings, self.name, name),
+            url=response.xpath("//div[contains(@class, 'book-cover')]/p/img/@src").get()
         )
 
         for span in response.xpath("//ul[contains(@class, 'detail-list')]//span"):
