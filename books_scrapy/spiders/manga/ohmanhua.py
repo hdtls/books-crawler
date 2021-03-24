@@ -1,15 +1,12 @@
 import base64
 import demjson
-import scrapy
 import re
-import os
 
 from books_scrapy.items import *
 from books_scrapy.utils import *
 from books_scrapy.spiders import Spider
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from pathlib import Path
 
 
 class OHManhuaSpider(Spider):
@@ -84,25 +81,7 @@ class OHManhuaSpider(Spider):
         )
 
     def get_book_catalog(self, response):
-        book_catalog = []
-
-        # Capter list serializing.
-        # html.css("div.all_data_list li")
-        for li in response.xpath("//div[contains(@class, 'all_data_list')]//li"):
-            # name = fmt_label(li.css("a::text").get()
-            name = fmt_label(li.xpath("./a/text()").get())
-
-            # url = self.base_url + li.css("a::attr(href)").get()
-            url = self.base_url + li.xpath("./a/@href").get()
-
-            entry = MangaChapter(
-                name=name,
-                ref_url=url,
-                image_urls=[],
-            )
-            book_catalog.append(entry)
-
-        return book_catalog
+        return response.xpath("//div[contains(@class, 'all_data_list')]//li/a")
 
     def parse_chapter_data(self, response):
         match = re.findall(r"var C_DATA= ?(.*?);", response.text)
@@ -115,7 +94,6 @@ class OHManhuaSpider(Spider):
         if not loaded_chapter:
             return
 
-        manga_name = loaded_chapter["mhname"]
         name = loaded_chapter["pagename"]
         page_size = loaded_chapter["page_size"]
 
@@ -137,21 +115,23 @@ class OHManhuaSpider(Spider):
             image = Image(
                 name=img_name,
                 url=img_url,
-                file_path=get_img_store(self.settings, self.name, manga_name, name),
             )
             image_urls.append(image)
 
-        yield MangaChapter(
+        chapter = MangaChapter(
             name=name,
+            book_id=revert_fmt_meta(response.meta),
             ref_url=response.url,
             image_urls=image_urls,
-            page_size=page_size,
         )
 
-    def _load_chapter(self, ciphertext):
+        yield chapter
+
+    @staticmethod
+    def _load_chapter(ciphertext):
         assert isinstance(ciphertext, str)
 
-        plaintext = self._decrypt(ciphertext)
+        plaintext = OHManhuaSpider._decrypt(ciphertext)
 
         match = re.findall(r"mh_info=(.*?);", plaintext)
 
@@ -163,11 +143,11 @@ class OHManhuaSpider(Spider):
 
         if dict_value["enc_code1"]:
             dict_value["page_size"] = int(
-                fmt_label(self._decrypt(dict_value["enc_code1"]))
+                fmt_label(OHManhuaSpider._decrypt(dict_value["enc_code1"]))
             )
 
         if dict_value["enc_code2"]:
-            dict_value["img_url_path"] = self._decrypt(
+            dict_value["img_url_path"] = OHManhuaSpider._decrypt(
                 dict_value["enc_code2"],
                 "fw125gjdi9ertyui",
             )
@@ -196,7 +176,8 @@ class OHManhuaSpider(Spider):
         """
         return dict_value
 
-    def _decrypt(self, ciphertext, key=None):
+    @staticmethod
+    def _decrypt(ciphertext, key=None):
         ciphertext = base64.b64decode(ciphertext)
         input_key = key.encode("utf-8") if key else None
 

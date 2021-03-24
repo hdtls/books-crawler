@@ -1,12 +1,6 @@
-import scrapy
-import os
-import re
-import json
-
 from books_scrapy.items import *
 from books_scrapy.utils import *
 from books_scrapy.spiders import Spider
-from scrapy import Request
 
 
 class The36MHSpider(Spider):
@@ -56,21 +50,7 @@ class The36MHSpider(Spider):
         )
 
     def get_book_catalog(self, response):
-        book_catalog = []
-
-        for li in response.xpath("//ul[@id='chapter-list-4']/li"):
-            name = fmt_label(li.xpath(".//span/text()").get())
-            ref_url = self.base_url + fmt_label(li.xpath("./a/@href").get())
-
-            chapter = MangaChapter(
-                name=name,
-                ref_url=ref_url,
-                image_urls=[],
-            )
-
-            book_catalog.append(chapter)
-
-        return book_catalog
+        return response.xpath("//ul[@id='chapter-list-4']/li/a")
 
     def parse_chapter_data(self, response):
         img_name_list = eval_js_variable("chapterImages", response.text)
@@ -80,10 +60,6 @@ class The36MHSpider(Spider):
         if not (img_name_list and path):
             return
 
-        manga_name = response.xpath(
-            "//div[contains(@class, 'w996 title pr')]/h1/a/text()"
-        ).get()
-
         name = response.xpath(
             "//div[contains(@class, 'w996 title pr')]/h2/text()"
         ).get()
@@ -91,20 +67,17 @@ class The36MHSpider(Spider):
         image_urls = []
 
         for index, url in enumerate(img_name_list):
-            img_url = self.img_base_url + "/" + path + url
-            img_name = str(index + 1).zfill(4) + ".jpg"
-            file_path = get_img_store(
-                self.settings,
-                self.name,
-                manga_name,
-                name,
+            image = Image(
+                url=self.img_base_url + "/" + path + url,
+                name=str(index + 1).zfill(4) + ".jpg",
             )
-            image = Image(url=img_url, name=img_name, file_path=file_path)
             image_urls.append(image)
 
-        yield MangaChapter(
+        chapter = MangaChapter(
             name=name,
+            book_id=revert_fmt_meta(response.meta),
             ref_url=response.url,
             image_urls=image_urls,
-            page_size=len(image_urls),
         )
+
+        yield chapter
