@@ -31,7 +31,7 @@ class CartoonMadSpider(Spider):
             authors=authors,
             categories=categories,
             excerpt=excerpt,
-            ref_url=response.url,
+            ref_urls=[response.url],
         )
 
     def get_book_catalog(self, response):
@@ -72,7 +72,7 @@ class CartoonMadSpider(Spider):
         chapter = MangaChapter(
             name=response.xpath("//title/text()").get().split(" - ")[1],
             book_id=revert_fmt_meta(response.meta),
-            ref_url=response.url,
+            ref_urls=[response.url],
             image_urls=image_urls,
         )
 
