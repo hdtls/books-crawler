@@ -3,21 +3,39 @@
 # See documentation in:
 # https://docs.scrapy.org/en/latest/topics/items.html
 
-import scrapy
+import hashlib
 
 from dataclasses import dataclass
 from typing import Optional
 from typing import List
 
-__all__ = ["Image", "Manga", "MangaChapter"]
+__all__ = ["Catalog", "Chapter", "Image", "Manga", "MangaChapter"]
+
+
+@dataclass
+class Chapter:
+    name: str
+    book_id: str
+    ref_url: str
+
+    @property
+    def fp(self):
+        plaintext = self.name.encode("utf-8")
+        md5 = hashlib.md5()
+        md5.update(plaintext)
+        return md5.hexdigest()[8:-8]
+
+
+@dataclass
+class Catalog:
+    ref_id: str
+    entries: List[Chapter]
 
 
 @dataclass
 class Image:
     url: str
     name: Optional[str] = None
-    file_path: Optional[str] = None
-    http_headers: Optional[dict] = None
 
 
 @dataclass
@@ -35,15 +53,22 @@ class Manga:
     status: Optional[str] = None
     categories: Optional[List[str]] = None
 
+    @property
+    def fingerprint(self):
+        plaintext = self.name + "-" + ",".join(self.authors)
+        plaintext = plaintext.encode("utf-8")
+        md5 = hashlib.md5()
+        md5.update(plaintext)
+        return md5.hexdigest()[8:-8]
+
 
 @dataclass
-class MangaChapter:
-    name: str
-    ref_url: str
+class MangaChapter(Chapter):
     image_urls: List[Image]
-    page_size: int = 0
-    rel_m_id: Optional[str] = None
-    rel_m_title: Optional[str] = None
+
+    @property
+    def page_size(self):
+        return len(self.image_urls)
 
 
 @dataclass
