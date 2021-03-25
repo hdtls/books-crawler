@@ -30,7 +30,7 @@ class OHManhuaSpider(Spider):
         cover_image = Image(url=img_url)
 
         area = None
-        alias = None
+        aliases = None
         status = None
         authors = []
         categories = None
@@ -43,11 +43,11 @@ class OHManhuaSpider(Spider):
             text = li.xpath("./a/text()").get()
             if label == "别名":
                 # There is an empty " " in results that should be ignored.
-                alias = list(
+                aliases = list(
                     filter(lambda str: str != " ", li.xpath("./text()").getall())
                 )
-                alias = fmt_label(alias[0]) if len(alias) >= 1 else ""
-                alias = alias.split(",")
+                aliases = fmt_label(aliases[0]) if len(aliases) >= 1 else ""
+                aliases = aliases.split(",")
             elif label == "状态":
                 # status = text
                 status = text
@@ -69,14 +69,14 @@ class OHManhuaSpider(Spider):
 
         return Manga(
             name=name,
-            alias=alias,
+            aliases=aliases,
             cover_image=cover_image,
             authors=authors,
             status=status,
             categories=categories,
             excerpt=excerpt,
             area=area,
-            ref_url=response.url,
+            ref_urls=[response.url],
         )
 
     def get_book_catalog(self, response):
@@ -120,7 +120,7 @@ class OHManhuaSpider(Spider):
         chapter = MangaChapter(
             name=name,
             book_id=revert_fmt_meta(response.meta),
-            ref_url=response.url,
+            ref_urls=[response.url],
             image_urls=image_urls,
         )
 

@@ -34,7 +34,7 @@ class The36MHSpider(Spider):
             elif label == "漫画状态：":
                 status = text
 
-        # TODO: Manga alias serializng if have.
+        # TODO: Manga aliases serializng if have.
         return Manga(
             name=name,
             cover_image=cover_image,
@@ -43,7 +43,7 @@ class The36MHSpider(Spider):
             categories=categories,
             excerpt=excerpt,
             area=area,
-            ref_url=response.url,
+            ref_urls=[response.url],
         )
 
     def get_book_catalog(self, response):
@@ -73,7 +73,7 @@ class The36MHSpider(Spider):
         chapter = MangaChapter(
             name=name,
             book_id=revert_fmt_meta(response.meta),
-            ref_url=response.url,
+            ref_urls=[response.url],
             image_urls=image_urls,
         )
 

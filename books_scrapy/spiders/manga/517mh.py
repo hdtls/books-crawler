@@ -43,7 +43,7 @@ class The517MangaSpider(Spider):
             cover_image=cover_image,
             excerpt=excerpt,
             name=name,
-            ref_url=response.url,
+            ref_urls=[response.url],
         )
 
     def get_book_catalog(self, response):
@@ -121,7 +121,7 @@ class The517MangaSpider(Spider):
         chapter = MangaChapter(
             name=qTcms_obj.qTcms_S_m_playm,
             book_id=revert_fmt_meta(response.meta),
-            ref_url=response.url,
+            ref_urls=[response.url],
             image_urls=image_urls,
         )
 
