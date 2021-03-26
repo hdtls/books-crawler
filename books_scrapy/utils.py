@@ -5,10 +5,12 @@ import json
 def fmt_label(label):
     return label.strip() if isinstance(label, str) else ""
 
+
 def fmt_url_domain(domain):
     if not isinstance(domain, str):
         return None
     return domain[:-1] if domain.endswith("/") else domain
+
 
 def fmt_url_path(path):
     if not isinstance(path, str):
@@ -42,3 +44,7 @@ def eval_js_variable(label, text):
     if not match:
         return None
     return json.loads(match[0])
+
+
+def list_extend(lhs, rhs):
+    return [lhs.append(el) for el in rhs if not el in lhs]
