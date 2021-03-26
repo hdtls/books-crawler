@@ -13,10 +13,16 @@ __all__ = ["Catalog", "Chapter", "Image", "Manga", "MangaChapter"]
 
 
 @dataclass
+class Image:
+    url: str
+    name: Optional[str] = None
+
+
+@dataclass
 class Chapter:
     name: str
-    book_id: str
-    ref_url: str
+    book_id: int
+    ref_urls: str
 
     @property
     def fp(self):
@@ -45,9 +51,9 @@ class Manga:
     cover_image: Image
     excerpt: str
     name: str
-    ref_url: str
-    area: Optional[str] = None
-    alias: Optional[str] = None
+    area: Optional[str]
+    ref_urls: List[str] = field(default_factory=list)
+    aliases: Optional[List[str]] = None
     background_image: Optional[Image] = None
     promo_image: Optional[Image] = None
     status: Optional[str] = None
