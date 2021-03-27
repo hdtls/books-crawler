@@ -79,20 +79,58 @@ class MangaChapter(Chapter):
             )
 
 
+# author_manga_siblings = Table(
+#     "author_manga_siblings",
+#     mapper_registry.metadata,
+#     Column("user_id", Integer, ForeignKey("users.id"), nullable=False, primary_key=True),
+#     Column("manga_id", Integer, ForeignKey("manga.id"), nullable=False, primary_key=True),
+# )
+
+
 @dataclass
+@mapper_registry.mapped
 class Manga:
-    # define the fields for your item here like:
-    authors: List[str]
+    __table__ = Table(
+        "manga",
+        mapper_registry.metadata,
+        Column("id", BigInteger, autoincrement=True, primary_key=True),
+        Column("fingerprint", Binary(16), index=True, unique=True),
+        Column("name", String(255), nullable=False),
+        Column("excerpt", Text, nullable=False),
+        Column("ref_urls", ARRAY(String)),
+        Column("aliases", ARRAY(String)),
+        Column("cover_image", JSON, nullable=False),
+        Column("background_image", JSON),
+        Column("promo_image", JSON),
+        Column("schedule", Integer, nullable=False),
+        Column("area_id", ForeignKey("manga_areas.id"), index=True),
+    )
+
+    __mapper_args__ = {
+        "properties": {
+            "chapters": relationship("MangaChapter", backref="manga"),
+            # "authors": relationship("User", secondary=author_manga_siblings)
+        }
+    }
+
+    id: int = field(init=False)
     cover_image: Image
     excerpt: str
     name: str
     area: Optional[str]
     ref_urls: List[str] = field(default_factory=list)
+    area_id: Optional[int] = None
     aliases: Optional[List[str]] = None
     background_image: Optional[Image] = None
     promo_image: Optional[Image] = None
-    status: Optional[str] = None
-    categories: Optional[List[str]] = None
+    # Schedule for manga publishing. there only have two value,
+    # 0 for inprogress or 1 for finished.
+    schedule: int = field(default=0)
+
+    authors: List[str] = field(default_factory=list)
+    categories: Optional[List[str]] = field(default_factory=list)
+
+    chapters: Optional[List[MangaChapter]] = field(default_factory=list)
 
     @property
     def fingerprint(self):
@@ -100,7 +138,7 @@ class Manga:
         plaintext = plaintext.encode("utf-8")
         md5 = hashlib.md5()
         md5.update(plaintext)
-        return md5.hexdigest()[8:-8]
+        return md5.digest()
 
 
 @dataclass
