@@ -25,6 +25,11 @@ mapper_registry = registry()
 
 
 @dataclass
+class MangaCategory:
+    pass
+
+
+@dataclass
 class Image:
     url: str
     name: Optional[str] = None
@@ -142,12 +147,24 @@ class Manga:
 
 
 @dataclass
-class MangaChapter(Chapter):
-    image_urls: List[Image]
+@mapper_registry.mapped
+class MangaArea:
+    __table__ = Table(
+        "manga_areas",
+        mapper_registry.metadata,
+        Column("id", Integer, autoincrement=True, primary_key=True),
+        Column("name", String(255), nullable=False, unique=True),
+    )
 
-    @property
-    def page_size(self):
-        return len(self.image_urls)
+    __mapper_args__ = {
+        "properties": {
+            "manga": relationship("Manga"),
+        },
+    }
+
+    id: int = field(init=False)
+    name: str
+    manga: List[Manga] = field(init=False, default_factory=list)
 
 
 @dataclass
