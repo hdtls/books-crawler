@@ -5,11 +5,23 @@
 
 import hashlib
 
-from dataclasses import dataclass
-from typing import Optional
-from typing import List
+from books_scrapy.utils import list_extend
+from dataclasses import dataclass, field
+from typing import Any, Optional, List
+from sqlalchemy.orm import relationship
+from sqlalchemy.orm.decl_api import registry
+from sqlalchemy.sql.schema import Column, ForeignKey, Table
+from sqlalchemy.sql.sqltypes import (
+    ARRAY,
+    BigInteger,
+    Binary,
+    Integer,
+    JSON,
+    String,
+    Text,
+)
 
-__all__ = ["Catalog", "Chapter", "Image", "Manga", "MangaChapter"]
+mapper_registry = registry()
 
 
 @dataclass
@@ -33,15 +45,38 @@ class Chapter:
 
 
 @dataclass
-class Catalog:
-    ref_id: str
-    entries: List[Chapter]
+@mapper_registry.mapped
+class MangaChapter(Chapter):
+    __table__ = Table(
+        "manga_chapters",
+        mapper_registry.metadata,
+        Column("id", BigInteger, autoincrement=True, primary_key=True),
+        Column("fingerprint", Binary(16), index=True, unique=True),
+        Column("image_urls", ARRAY(JSON)),
+        Column("book_id", BigInteger, ForeignKey("manga.id")),
+    )
 
+    id: int = field(init=False)
+    image_urls: List[Image] = field(default_factory=list, default=[])
 
-@dataclass
-class Image:
-    url: str
-    name: Optional[str] = None
+    @property
+    def page_size(self):
+        return len(self.image_urls)
+
+    @property
+    def fingerprint(self):
+        plaintext = self.name.encode("utf-8")
+        md5 = hashlib.md5()
+        md5.update(plaintext)
+        return md5.digest()
+
+    def merge(self, other):
+        self.ref_urls = list_extend(self.ref_urls, other.ref_urls)
+
+        if self.page_size < other.page_size:
+            self.image_urls = sorted(
+                list_extend(self.image_urls, other.image_urls), key=lambda url: url.name
+            )
 
 
 @dataclass
