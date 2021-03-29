@@ -7,8 +7,6 @@
 #     https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 #     https://docs.scrapy.org/en/latest/topics/spider-middleware.html
 
-from books_scrapy import pipelines
-import books_scrapy
 from pathlib import Path
 
 BOT_NAME = "books_scrapy"
@@ -21,7 +19,7 @@ NEWSPIDER_MODULE = "books_scrapy.spiders"
 
 FEED_EXPORT_ENCODING = "utf-8"
 
-LOG_LEVEL = "DEBUG"
+LOG_LEVEL = "ERROR"
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 # USER_AGENT = 'books_scrapy (+http://www.yourdomain.com)'
@@ -102,4 +100,3 @@ HTTPCACHE_ENABLED = True
 HTTPCACHE_DIR = "httpcache"
 # HTTPCACHE_IGNORE_HTTP_CODES = []
 HTTPCACHE_STORAGE = "scrapy.extensions.httpcache.FilesystemCacheStorage"
-# HTTPCACHE_STORAGE = "scrapy_splash.SplashAwareFSCacheStorage"
