@@ -29,17 +29,18 @@ class MySQLPipeline:
     def close_spider(self, spider):
         self.session.close()
 
-    def process_item(self, item: Manga, spider):
+    def process_item(self, item, spider):
         session = self.session
 
         exsit_item = None
 
         if isinstance(item, Manga):
-            item.fingerprint = item.make_fingerprint()
+            item.signature = item.make_signature()
 
             exsit_item: Manga = (
                 session.query(Manga)
-                .filter(Manga.fingerprint == item.fingerprint)
+                .filter(Manga.signature == item.signature)
+                .join(Manga.chapters)
                 .first()
             )
 
@@ -48,11 +49,11 @@ class MySQLPipeline:
             else:
                 exsit_item = item
         elif isinstance(item, MangaChapter):
-            item.fingerprint = item.make_fingerprint()
+            item.signature = item.make_signature()
 
             exsit_item: Manga = (
                 session.query(Manga)
-                .filter(Manga.fingerprint == item.book_unique)
+                .filter(Manga.signature == item.book_unique)
                 .join(Manga.chapters)
                 .first()
             )
