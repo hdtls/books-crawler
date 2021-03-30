@@ -69,15 +69,15 @@ DOWNLOADER_MIDDLEWARES = {
 #    'scrapy.extensions.telnet.TelnetConsole': None,
 # }
 
-MYSQL_URL = "mysql+pymysql://root:root@localhost:3306/books_scrapy"
+MYSQL_URL = "mysql+pymysql://user:mysql@localhost:3306/scrapy?charset=utf8mb4"
 
 IMAGES_STORE = str(Path.home()) + "/Downloads"
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
-    "books_scrapy.pipelines.ImagesPipeline": 300,
-    "books_scrapy.pipelines.MySQLPipeline": 500,
+    "books_scrapy.pipelines.images.ImagesPipeline": 300,
+    "books_scrapy.pipelines.sql.MySQLPipeline": 500,
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)
