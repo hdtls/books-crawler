@@ -1,4 +1,5 @@
 import base64
+from dataclasses import asdict
 
 from books_scrapy.items import *
 from books_scrapy.items import QTcmsObject
@@ -38,13 +39,16 @@ class The517MangaSpider(Spider):
             "./p[contains(@class, 'works-info-tc')][position()=2]/span[last()]/em/text()"
         ).get()
 
-        return Manga(
-            authors=authors,
-            cover_image=cover_image,
+        manga = Manga(
+            cover_image=asdict(cover_image),
             excerpt=excerpt,
             name=name,
             ref_urls=[response.url],
+            schedule=0,
         )
+        manga.authors = authors
+
+        return manga
 
     def get_book_catalog(self, response):
         return response.xpath("//ul[@id='mh-chapter-list-ol-0']/li/a")

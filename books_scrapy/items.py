@@ -118,8 +118,7 @@ class Manga:
         }
     }
 
-    id: int = field(init=False)
-    cover_image: Image
+    cover_image: dict
     excerpt: str
     name: str
     area: Optional[str]
