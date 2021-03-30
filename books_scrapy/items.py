@@ -49,10 +49,10 @@ class MangaChapter(Chapter):
         "manga_chapters",
         mapper_registry.metadata,
         Column("id", BigInteger, autoincrement=True, primary_key=True),
+        Column("signature", String(32), nullable=False, unique=True),
         Column("name", String, nullable=False),
         Column("image_urls", JSON(none_as_null=True), nullable=False),
         Column("ref_urls", JSON(none_as_null=True)),
-        Column("fingerprint", String(32), nullable=False, unique=True),
         Column("book_id", BigInteger, ForeignKey("manga.id")),
         Column("created_at", DateTime, default=datetime.now(timezone.utc)),
         Column(
@@ -63,14 +63,14 @@ class MangaChapter(Chapter):
         ),
     )
 
-    fingerprint: str
+    signature: str
     image_urls: List[dict]
 
     @property
     def page_size(self):
         return len(self.image_urls)
 
-    def make_fingerprint(self):
+    def make_signature(self):
         plaintext = self.book_unique + self.name
         plaintext = plaintext.encode("utf-8")
         md5 = hashlib.md5()
@@ -99,7 +99,7 @@ class Manga:
         "manga",
         mapper_registry.metadata,
         Column("id", BigInteger, autoincrement=True, primary_key=True),
-        Column("fingerprint", String(32), nullable=True, unique=True),
+        Column("signature", String(32), nullable=True, unique=True),
         Column("name", String(255), nullable=False),
         Column("excerpt", Text, nullable=False),
         Column("cover_image", JSON(none_as_null=True), nullable=False),
@@ -128,7 +128,7 @@ class Manga:
     cover_image: dict
     excerpt: str
     name: str
-    fingerprint: str
+    signature: str
     # Schedule for manga publishing. there only have two value,
     # 0 for inprogress or 1 for finished.
     schedule: int
@@ -142,7 +142,7 @@ class Manga:
     categories: Optional[List[str]] = None
     chapters: Optional[List[MangaChapter]] = field(default_factory=list)
 
-    def make_fingerprint(self):
+    def make_signature(self):
         plaintext = self.name + "-" + ",".join(self.authors)
         plaintext = plaintext.encode("utf-8")
         md5 = hashlib.md5()
