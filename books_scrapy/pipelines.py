@@ -1,19 +1,21 @@
 import scrapy
 import hashlib
 
-
+from sqlalchemy.exc import SQLAlchemyError
 from books_scrapy.items import Manga, MangaChapter
 from books_scrapy.items import Image
-from books_scrapy.utils import fmt_meta, list_extend
+from books_scrapy.utils import fmt_meta
 from books_scrapy.utils import revert_fmt_meta
 from books_scrapy.settings import IMAGES_STORE
 from itemadapter import ItemAdapter
 from pathlib import Path
 from scrapy import Request
+from scrapy.pipelines import images
 from scrapy.utils.python import to_bytes
+from scrapy.exceptions import DropItem
 
 
-class ImagesPipeline(scrapy.pipelines.images.ImagesPipeline):
+class ImagesPipeline(images.ImagesPipeline):
     def get_media_requests(self, item, info):
         urls = ItemAdapter(item).get(self.images_urls_field, [])
         # FIXME: DEBUG only, enable download when release.
@@ -89,47 +91,50 @@ class MySQLPipeline(object):  #
     def process_item(self, item, spider):
         session = self.session
 
+        exsit_item = None
+
         if isinstance(item, Manga):
+            item.fingerprint = item.make_fingerprint()
+
             exsit_item: Manga = (
                 session.query(Manga)
                 .filter(Manga.fingerprint == item.fingerprint)
-                .join(Manga.chapters)
                 .first()
             )
 
             if exsit_item:
-                exsit_item.aliases = list_extend(exsit_item.aliases, item.aliases)
-                exsit_item.area = item.area or exsit_item.area
-
-                if item.chapters:
-                    chapter = item.chapters[0]
-                    filtered_item: MangaChapter = next(
-                        filter(
-                            lambda c: c.fingerprint == chapter.fingerprint,
-                            exsit_item.chapters,
-                        ),
-                        None,
-                    )
-                    if filtered_item:
-                        filtered_item.ref_urls = list_extend(
-                            filtered_item.ref_urls, chapter.ref_urls
-                        )
-
-                        if filtered_item.page_size < chapter.page_size:
-                            image_urls = chapter.image_urls
-                            filtered_item.image_urls = [
-                                filtered_item.image_urls.append(url)
-                                for url in image_urls
-                                if not url in filtered_item.image_urls
-                            ]
-                    else:
-                        exsit_item.chapters.append(chapter)
+                exsit_item.merge(item)
             else:
                 exsit_item = item
+        elif isinstance(item, MangaChapter):
+            item.fingerprint = item.make_fingerprint()
+
+            exsit_item: Manga = (
+                session.query(Manga)
+                .filter(Manga.fingerprint == item.book_unique)
+                .join(Manga.chapters)
+                .first()
+            )
+
+            if not exsit_item:
+                raise DropItem()
+
+            filtered_item: MangaChapter = next(
+                filter(lambda el: el.name == item.name, exsit_item.chapters)
+            )
+
+            if filtered_item:
+                filtered_item.merge(item)
+            else:
+                item.book_id = exsit_item.id
+                exsit_item.chapters.append(item)
+
+        if exsit_item:
             try:
                 session.add(exsit_item)
                 session.commit()
-            except:
+            except SQLAlchemyError as e:
+                spider.logger.error(e)
                 session.rollback()
 
-        return item
+        return exsit_item
