@@ -4,21 +4,19 @@
 # https://docs.scrapy.org/en/latest/topics/items.html
 
 import hashlib
+
 from datetime import datetime, timezone
 from books_scrapy.utils import list_extend
 from dataclasses import dataclass, field
 from typing import Optional, List
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.decl_api import registry
-from sqlalchemy.sql.functions import func
 from sqlalchemy.sql.schema import Column, ForeignKey, Table
 from sqlalchemy.sql.sqltypes import (
-    ARRAY,
     BigInteger,
     DateTime,
     Integer,
     JSON,
-    LargeBinary,
     String,
     Text,
 )
@@ -40,15 +38,8 @@ class Image:
 @dataclass
 class Chapter:
     name: str
-    book_id: int
-    ref_urls: str
-
-    @property
-    def fp(self):
-        plaintext = self.name.encode("utf-8")
-        md5 = hashlib.md5()
-        md5.update(plaintext)
-        return md5.hexdigest()[8:-8]
+    book_unique: str
+    ref_urls: Optional[List[str]]
 
 
 @dataclass
@@ -58,32 +49,39 @@ class MangaChapter(Chapter):
         "manga_chapters",
         mapper_registry.metadata,
         Column("id", BigInteger, autoincrement=True, primary_key=True),
-        Column("fingerprint", Binary(16), index=True, unique=True),
-        Column("image_urls", ARRAY(JSON)),
+        Column("name", String, nullable=False),
+        Column("image_urls", JSON(none_as_null=True), nullable=False),
+        Column("ref_urls", JSON(none_as_null=True)),
+        Column("fingerprint", String(32), nullable=False, unique=True),
         Column("book_id", BigInteger, ForeignKey("manga.id")),
+        Column("created_at", DateTime, default=datetime.now(timezone.utc)),
+        Column(
+            "updated_at",
+            DateTime,
+            default=datetime.now(timezone.utc),
+            onupdate=datetime.now(timezone.utc),
+        ),
     )
 
-    id: int = field(init=False)
-    image_urls: List[Image] = field(default_factory=list, default=[])
+    fingerprint: str
+    image_urls: List[dict]
 
     @property
     def page_size(self):
         return len(self.image_urls)
 
-    @property
-    def fingerprint(self):
-        plaintext = self.name.encode("utf-8")
+    def make_fingerprint(self):
+        plaintext = self.book_unique + self.name
+        plaintext = plaintext.encode("utf-8")
         md5 = hashlib.md5()
         md5.update(plaintext)
-        return md5.digest()
+        return md5.hexdigest()
 
     def merge(self, other):
         self.ref_urls = list_extend(self.ref_urls, other.ref_urls)
 
         if self.page_size < other.page_size:
-            self.image_urls = sorted(
-                list_extend(self.image_urls, other.image_urls), key=lambda url: url.name
-            )
+            self.image_urls = other.image_urls
 
 
 # author_manga_siblings = Table(
@@ -104,14 +102,19 @@ class Manga:
         Column("fingerprint", String(32), nullable=True, unique=True),
         Column("name", String(255), nullable=False),
         Column("excerpt", Text, nullable=False),
-        Column("cover_image", JSON, nullable=False),
+        Column("cover_image", JSON(none_as_null=True), nullable=False),
         Column("schedule", Integer, nullable=False),
-        Column("ref_urls", JSON),
-        Column("aliases", JSON),
-        Column("background_image", JSON),
-        Column("promo_image", JSON),
+        Column("ref_urls", JSON(none_as_null=True)),
+        Column("aliases", JSON(none_as_null=True)),
+        Column("background_image", JSON(none_as_null=True)),
+        Column("promo_image", JSON(none_as_null=True)),
         Column("created_at", DateTime, default=datetime.now(timezone.utc)),
-        Column("updated_at", DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc)),
+        Column(
+            "updated_at",
+            DateTime,
+            default=datetime.now(timezone.utc),
+            onupdate=datetime.now(timezone.utc),
+        ),
         Column("area_id", ForeignKey("manga_areas.id")),
     )
 
@@ -137,7 +140,7 @@ class Manga:
     background_image: Optional[Image] = None
     promo_image: Optional[Image] = None
     categories: Optional[List[str]] = None
-    chapters: Optional[List[MangaChapter]] = None
+    chapters: Optional[List[MangaChapter]] = field(default_factory=list)
 
     def make_fingerprint(self):
         plaintext = self.name + "-" + ",".join(self.authors)
@@ -145,6 +148,21 @@ class Manga:
         md5 = hashlib.md5()
         md5.update(plaintext)
         return md5.hexdigest()
+
+    def merge(self, other):
+        """
+        Merging two non-copyright manga object properties.
+        all properties that describe database relationship will be ignored.
+        """
+
+        if not isinstance(other, Manga):
+            return
+
+        self.aliases = list_extend(self.aliases, other.aliases)
+        self.schedule = other.schedule
+        self.ref_urls = list_extend(self.ref_urls, other.ref_urls)
+        self.background_image = self.background_image or other.background_image
+        self.promo_image = self.background_image or other.background_image
 
 
 @dataclass
@@ -156,7 +174,12 @@ class MangaArea:
         Column("id", Integer, autoincrement=True, primary_key=True),
         Column("name", String(), nullable=False, unique=True),
         Column("created_at", DateTime, default=datetime.now(timezone.utc)),
-        Column("updated_at", DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc)),
+        Column(
+            "updated_at",
+            DateTime,
+            default=datetime.now(timezone.utc),
+            onupdate=datetime.now(timezone.utc),
+        ),
     )
 
     __mapper_args__ = {

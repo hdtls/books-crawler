@@ -47,4 +47,6 @@ def eval_js_variable(label, text):
 
 
 def list_extend(lhs, rhs):
-    return [lhs.append(el) for el in rhs if not el in lhs]
+    lhs = lhs or []
+    rhs = rhs or []
+    return list(set(lhs + rhs)) or None

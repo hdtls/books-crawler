@@ -120,14 +120,15 @@ class The517MangaSpider(Spider):
                 name=str(index).zfill(3) + ".jpg",
                 url=self.parse_img_url(orig_url, qTcms_obj),
             )
-            image_urls.append(img)
+            image_urls.append(asdict(img))
 
         chapter = MangaChapter(
             name=qTcms_obj.qTcms_S_m_playm,
-            book_id=revert_fmt_meta(response.meta),
+            book_unique=revert_fmt_meta(response.meta),
             ref_urls=[response.url],
-            image_urls=image_urls,
+            # image_urls=image_urls,
         )
+        chapter.image_urls = image_urls
 
         yield chapter
 
