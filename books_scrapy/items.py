@@ -4,19 +4,21 @@
 # https://docs.scrapy.org/en/latest/topics/items.html
 
 import hashlib
-
+from datetime import datetime, timezone
 from books_scrapy.utils import list_extend
 from dataclasses import dataclass, field
-from typing import Any, Optional, List
+from typing import Optional, List
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.decl_api import registry
+from sqlalchemy.sql.functions import func
 from sqlalchemy.sql.schema import Column, ForeignKey, Table
 from sqlalchemy.sql.sqltypes import (
     ARRAY,
     BigInteger,
-    Binary,
+    DateTime,
     Integer,
     JSON,
+    LargeBinary,
     String,
     Text,
 )
@@ -99,16 +101,18 @@ class Manga:
         "manga",
         mapper_registry.metadata,
         Column("id", BigInteger, autoincrement=True, primary_key=True),
-        Column("fingerprint", Binary(16), index=True, unique=True),
+        Column("fingerprint", String(32), nullable=True, unique=True),
         Column("name", String(255), nullable=False),
         Column("excerpt", Text, nullable=False),
-        Column("ref_urls", ARRAY(String)),
-        Column("aliases", ARRAY(String)),
         Column("cover_image", JSON, nullable=False),
+        Column("schedule", Integer, nullable=False),
+        Column("ref_urls", JSON),
+        Column("aliases", JSON),
         Column("background_image", JSON),
         Column("promo_image", JSON),
-        Column("schedule", Integer, nullable=False),
-        Column("area_id", ForeignKey("manga_areas.id"), index=True),
+        Column("created_at", DateTime, default=datetime.now(timezone.utc)),
+        Column("updated_at", DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc)),
+        Column("area_id", ForeignKey("manga_areas.id")),
     )
 
     __mapper_args__ = {
@@ -121,28 +125,26 @@ class Manga:
     cover_image: dict
     excerpt: str
     name: str
-    area: Optional[str]
-    ref_urls: List[str] = field(default_factory=list)
+    fingerprint: str
+    # Schedule for manga publishing. there only have two value,
+    # 0 for inprogress or 1 for finished.
+    schedule: int
+    authors: List[str] = field(default_factory=list)
+    ref_urls: Optional[List[str]] = None
+    area: Optional[str] = None
     area_id: Optional[int] = None
     aliases: Optional[List[str]] = None
     background_image: Optional[Image] = None
     promo_image: Optional[Image] = None
-    # Schedule for manga publishing. there only have two value,
-    # 0 for inprogress or 1 for finished.
-    schedule: int = field(default=0)
+    categories: Optional[List[str]] = None
+    chapters: Optional[List[MangaChapter]] = None
 
-    authors: List[str] = field(default_factory=list)
-    categories: Optional[List[str]] = field(default_factory=list)
-
-    chapters: Optional[List[MangaChapter]] = field(default_factory=list)
-
-    @property
-    def fingerprint(self):
+    def make_fingerprint(self):
         plaintext = self.name + "-" + ",".join(self.authors)
         plaintext = plaintext.encode("utf-8")
         md5 = hashlib.md5()
         md5.update(plaintext)
-        return md5.digest()
+        return md5.hexdigest()
 
 
 @dataclass
@@ -152,16 +154,17 @@ class MangaArea:
         "manga_areas",
         mapper_registry.metadata,
         Column("id", Integer, autoincrement=True, primary_key=True),
-        Column("name", String(255), nullable=False, unique=True),
+        Column("name", String(), nullable=False, unique=True),
+        Column("created_at", DateTime, default=datetime.now(timezone.utc)),
+        Column("updated_at", DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc)),
     )
 
     __mapper_args__ = {
         "properties": {
-            "manga": relationship("Manga"),
+            "manga": relationship("Manga", backref="area"),
         },
     }
 
-    id: int = field(init=False)
     name: str
     manga: List[Manga] = field(init=False, default_factory=list)
 
