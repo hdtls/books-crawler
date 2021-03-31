@@ -18,7 +18,7 @@ class CartoonMadSpider(Spider):
 
         img_url = self.base_url + tr_list[1].css("img::attr(src)").get()
 
-        cover_image = Image(url=img_url)
+        cover_image = dict(url=img_url)
 
         authors = tr_list.css("tr:nth-child(5) td::text").get().strip()[6:].split(",")
         categories = tr_list.css("tr:nth-child(3) a::text").get()
@@ -62,7 +62,7 @@ class CartoonMadSpider(Spider):
             img_name = str(page).zfill(4) + ".jpg"
             img_url = img_url[:-3] + str(page).zfill(3)
 
-            image = Image(
+            image = dict(
                 name=img_name,
                 url=img_url,
             )
@@ -71,7 +71,7 @@ class CartoonMadSpider(Spider):
 
         chapter = MangaChapter(
             name=response.xpath("//title/text()").get().split(" - ")[1],
-            book_id=revert_fmt_meta(response.meta),
+            books_query_id=revert_fmt_meta(response.meta),
             ref_urls=[response.url],
             image_urls=image_urls,
         )

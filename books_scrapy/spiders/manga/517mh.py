@@ -4,7 +4,6 @@ from books_scrapy.items import *
 from books_scrapy.items import QTcmsObject
 from books_scrapy.utils import *
 from books_scrapy.spiders import Spider
-from dataclasses import asdict
 
 
 class The517MangaSpider(Spider):
@@ -22,7 +21,7 @@ class The517MangaSpider(Spider):
             "./div[contains(@class, 'mh-date-info-name')]//a/text()"
         ).get()
 
-        cover_image = Image(
+        cover_image = dict(
             url=response.xpath(
                 "//div[contains(@class, 'mh-date-bgpic')]//img/@src"
             ).get()
@@ -40,7 +39,7 @@ class The517MangaSpider(Spider):
         ).get()
 
         manga = Manga(
-            cover_image=asdict(cover_image),
+            cover_image=cover_image,
             excerpt=excerpt,
             name=name,
             ref_urls=[response.url],
@@ -116,11 +115,11 @@ class The517MangaSpider(Spider):
         image_urls = []
 
         for index, orig_url in enumerate(orig_url_list):
-            img = Image(
+            img = dict(
                 name=str(index).zfill(3) + ".jpg",
                 url=self.parse_img_url(orig_url, qTcms_obj),
             )
-            image_urls.append(asdict(img))
+            image_urls.append(img)
 
         chapter = MangaChapter(
             name=qTcms_obj.qTcms_S_m_playm,
