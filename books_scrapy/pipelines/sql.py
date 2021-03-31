@@ -21,7 +21,7 @@ class MySQLPipeline:
         return cls(crawler)
 
     def open_spider(self, spider):
-        engine = create_engine(self.settings["MYSQL_URL"], encoding="utf8", echo=True)
+        engine = create_engine(self.settings["MYSQL_URL"], encoding="utf8")
         self.session: Session = sessionmaker(bind=engine)()
 
     def close_spider(self, spider):

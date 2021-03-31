@@ -1,10 +1,10 @@
 import base64
-from dataclasses import asdict
 
 from books_scrapy.items import *
 from books_scrapy.items import QTcmsObject
 from books_scrapy.utils import *
 from books_scrapy.spiders import Spider
+from dataclasses import asdict
 
 
 class The517MangaSpider(Spider):
@@ -124,7 +124,7 @@ class The517MangaSpider(Spider):
 
         chapter = MangaChapter(
             name=qTcms_obj.qTcms_S_m_playm,
-            book_unique=revert_fmt_meta(response.meta),
+            books_query_id=revert_fmt_meta(response.meta),
             ref_urls=[response.url],
             # image_urls=image_urls,
         )
