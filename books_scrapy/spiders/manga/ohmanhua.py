@@ -27,7 +27,7 @@ class OHManhuaSpider(Spider):
             "//dt[contains(@class, 'fed-deta-images')]/a/@data-original"
         ).get()
 
-        cover_image = Image(url=img_url)
+        cover_image = dict(url=img_url)
 
         area = None
         aliases = None
@@ -111,7 +111,7 @@ class OHManhuaSpider(Spider):
                 + ".jpg"
             )
             img_name = str(img_index).zfill(4) + ".jpg"
-            image = Image(
+            image = dict(
                 name=img_name,
                 url=img_url,
             )

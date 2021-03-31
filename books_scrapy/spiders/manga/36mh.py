@@ -16,7 +16,7 @@ class The36MHSpider(Spider):
 
         excerpt = fmt_label(response.xpath("//div[@id='intro-all']//p/text()").get())
 
-        cover_image = Image(
+        cover_image = dict(
             url=response.xpath("//div[contains(@class, 'book-cover')]/p/img/@src").get()
         )
 
@@ -64,7 +64,7 @@ class The36MHSpider(Spider):
         image_urls = []
 
         for index, url in enumerate(img_name_list):
-            image = Image(
+            image = dict(
                 url=self.img_base_url + "/" + path + url,
                 name=str(index + 1).zfill(4) + ".jpg",
             )
@@ -72,7 +72,7 @@ class The36MHSpider(Spider):
 
         chapter = MangaChapter(
             name=name,
-            book_id=revert_fmt_meta(response.meta),
+            books_query_id=revert_fmt_meta(response.meta),
             ref_urls=[response.url],
             image_urls=image_urls,
         )

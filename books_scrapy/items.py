@@ -30,12 +30,6 @@ class MangaCategory:
 
 
 @dataclass
-class Image:
-    url: str
-    name: Optional[str] = None
-
-
-@dataclass
 class Chapter:
     name: str
     ref_urls: Optional[List[str]]
@@ -137,8 +131,8 @@ class Manga:
     area: Optional[str] = None
     area_id: Optional[int] = None
     aliases: Optional[List[str]] = None
-    background_image: Optional[Image] = None
-    promo_image: Optional[Image] = None
+    background_image: Optional[dict] = None
+    promo_image: Optional[dict] = None
     categories: Optional[List[str]] = None
     chapters: Optional[List[MangaChapter]] = field(default_factory=list)
 
