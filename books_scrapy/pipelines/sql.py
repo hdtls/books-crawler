@@ -7,9 +7,6 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy import create_engine
 
 
-logger = logging.getLogger(__name__)
-
-
 class MySQLPipeline:
     def __init__(self, crawler):
         """
@@ -17,13 +14,14 @@ class MySQLPipeline:
         Create tables
         """
         self.settings = crawler.settings
+        self.logger = logging.getLogger(__name__)
 
     @classmethod
     def from_crawler(cls, crawler):
         return cls(crawler)
 
     def open_spider(self, spider):
-        engine = create_engine(self.settings["MYSQL_URL"])
+        engine = create_engine(self.settings["MYSQL_URL"], encoding="utf8", echo=True)
         self.session: Session = sessionmaker(bind=engine)()
 
     def close_spider(self, spider):
@@ -37,11 +35,8 @@ class MySQLPipeline:
         if isinstance(item, Manga):
             item.signature = item.make_signature()
 
-            exsit_item: Manga = (
-                session.query(Manga)
-                .filter(Manga.signature == item.signature)
-                .join(Manga.chapters)
-                .first()
+            exsit_item = (
+                session.query(Manga).filter(Manga.signature == item.signature).first()
             )
 
             if exsit_item:
@@ -51,18 +46,18 @@ class MySQLPipeline:
         elif isinstance(item, MangaChapter):
             item.signature = item.make_signature()
 
-            exsit_item: Manga = (
+            exsit_item = (
                 session.query(Manga)
-                .filter(Manga.signature == item.book_unique)
-                .join(Manga.chapters)
+                .filter(Manga.signature == item.books_query_id)
                 .first()
             )
 
             if not exsit_item:
                 raise DropItem()
 
-            filtered_item: MangaChapter = next(
-                filter(lambda el: el.name == item.name, exsit_item.chapters)
+            filtered_item = next(
+                filter(lambda el: el.name == item.name, exsit_item.chapters),
+                None,
             )
 
             if filtered_item:
@@ -79,6 +74,6 @@ class MySQLPipeline:
                 self.session.add(item)
                 self.session.commit()
             except SQLAlchemyError as e:
-                logger.error(e)
+                self.logger.error(e)
                 self.session.rollback()
         return item

@@ -38,8 +38,8 @@ class Image:
 @dataclass
 class Chapter:
     name: str
-    book_unique: str
     ref_urls: Optional[List[str]]
+    books_query_id: str = field(repr=False)
 
 
 @dataclass
@@ -71,7 +71,7 @@ class MangaChapter(Chapter):
         return len(self.image_urls)
 
     def make_signature(self):
-        plaintext = self.book_unique + self.name
+        plaintext = self.books_query_id + self.name
         plaintext = plaintext.encode("utf-8")
         md5 = hashlib.md5()
         md5.update(plaintext)
@@ -108,6 +108,7 @@ class Manga:
         Column("aliases", JSON(none_as_null=True)),
         Column("background_image", JSON(none_as_null=True)),
         Column("promo_image", JSON(none_as_null=True)),
+        Column("area_id", ForeignKey("manga_areas.id")),
         Column("created_at", DateTime, default=datetime.now(timezone.utc)),
         Column(
             "updated_at",
@@ -115,7 +116,6 @@ class Manga:
             default=datetime.now(timezone.utc),
             onupdate=datetime.now(timezone.utc),
         ),
-        Column("area_id", ForeignKey("manga_areas.id")),
     )
 
     __mapper_args__ = {
