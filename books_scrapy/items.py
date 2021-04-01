@@ -8,7 +8,7 @@ import hashlib
 
 from datetime import datetime
 
-from books_scrapy.utils import list_extend
+from books_scrapy.utils import iter_diff, list_extend
 from dataclasses import dataclass, field
 from typing import Optional, List
 from sqlalchemy.orm import relationship
@@ -86,7 +86,7 @@ class MangaArea:
 
     __mapper_args__ = {
         "properties": {
-            "manga": relationship("Manga", backref="area"),
+            "manga": relationship("Manga"),
         },
     }
 
@@ -198,7 +198,7 @@ class Manga:
     ref_urls: Optional[List[str]] = None
     # Use for update `area_id` this is not db column.
     area: Optional[str] = None
-    area_id: Optional[int] = field(default=None, init=False, repr=False)
+    # area_id: Optional[int] = field(default=None, init=False, repr=False)
     aliases: Optional[List[str]] = None
     background_image: Optional[dict] = None
     promo_image: Optional[dict] = None
@@ -232,7 +232,7 @@ class Manga:
         self.ref_urls = list_extend(self.ref_urls, other.ref_urls)
         self.background_image = self.background_image or other.background_image
         self.promo_image = self.background_image or other.background_image
-        self.authors = other.authors
+        [self.authors.append(author) for author in iter_diff(self.authors, other.authors).added]
 
 
 @dataclass
