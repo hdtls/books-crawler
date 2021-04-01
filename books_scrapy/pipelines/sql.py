@@ -1,6 +1,7 @@
 import logging
 
-from books_scrapy.items import Manga, MangaChapter
+from books_scrapy.items import Author, Manga, MangaChapter
+from books_scrapy.utils import list_diff
 from scrapy.exceptions import DropItem
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
@@ -38,6 +39,23 @@ class MySQLPipeline:
             exsit_item = (
                 session.query(Manga).filter(Manga.signature == item.signature).first()
             )
+
+            orig_authors = []
+            if exsit_item:
+                orig_authors = exsit_item.authors
+            else:
+                # Query all authors that name in item.authors
+                orig_authors = (
+                    session.query(Author).filter(Author.name.in_(item.authors)).all()
+                )
+
+            # Register zombie user for new author that not exsit in saved `manga.authors`
+            # and update `manga.authors` to new value.
+            # For some reasons, we only do incremental updates for book author relationship.
+            for i in list_diff(orig_authors, item.authors).added:
+                written = self._handle_write(i)
+                orig_authors.append(written)
+                item.authors = orig_authors
 
             if exsit_item:
                 exsit_item.merge(item)
