@@ -7,9 +7,7 @@ import enum
 import hashlib
 
 from datetime import datetime
-from os import name
 
-from sqlalchemy.sql.expression import false, null
 from books_scrapy.utils import list_extend
 from dataclasses import dataclass, field
 from typing import Optional, List
@@ -58,7 +56,7 @@ class Author:
 
     def __eq__(self, o: object) -> bool:
         if not isinstance(o, Author):
-            return false
+            return False
         return self.name == o.name
 
 
@@ -67,6 +65,37 @@ class Chapter:
     name: str
     ref_urls: Optional[List[str]]
     books_query_id: str = field(repr=False)
+
+
+@dataclass
+@mapper_registry.mapped
+class MangaArea:
+    __table__ = Table(
+        "manga_areas",
+        mapper_registry.metadata,
+        Column("id", Integer, autoincrement=True, primary_key=True),
+        Column("name", String(), nullable=False, unique=True),
+        Column("created_at", DateTime, default=datetime.utcnow()),
+        Column(
+            "updated_at",
+            DateTime,
+            default=datetime.utcnow(),
+            onupdate=datetime.utcnow(),
+        ),
+    )
+
+    __mapper_args__ = {
+        "properties": {
+            "manga": relationship("Manga", backref="area"),
+        },
+    }
+
+    name: str
+
+    def __eq__(self, o: object) -> bool:
+        if not isinstance(o, MangaArea):
+            return False
+        return self.name == o.name
 
 
 @dataclass
@@ -167,11 +196,14 @@ class Manga:
     authors: List[Author] = field(init=False)
     copyrighted: bool = field(default=False, init=False)
     ref_urls: Optional[List[str]] = None
+    # Use for update `area_id` this is not db column.
+    area: Optional[str] = None
     area_id: Optional[int] = field(default=None, init=False, repr=False)
     aliases: Optional[List[str]] = None
     background_image: Optional[dict] = None
     promo_image: Optional[dict] = None
     categories: Optional[List[str]] = None
+    # Children relationshp
     chapters: Optional[List[MangaChapter]] = None
 
     def make_signature(self):
@@ -185,45 +217,22 @@ class Manga:
 
     def merge(self, other):
         """
-        Merging two non-copyright manga object properties.
+        Incremental merge two non-copyright manga object properties.
         all properties that describe database relationship will be ignored.
         """
 
-        if not isinstance(other, Manga):
+        if not isinstance(other, Manga) or self.copyrighted:
             return
+
+        if other.area_id:
+            self.area_id = other.area_id
 
         self.aliases = list_extend(self.aliases, other.aliases)
         self.schedule = other.schedule
         self.ref_urls = list_extend(self.ref_urls, other.ref_urls)
         self.background_image = self.background_image or other.background_image
         self.promo_image = self.background_image or other.background_image
-
-
-@dataclass
-@mapper_registry.mapped
-class MangaArea:
-    __table__ = Table(
-        "manga_areas",
-        mapper_registry.metadata,
-        Column("id", Integer, autoincrement=True, primary_key=True),
-        Column("name", String(), nullable=False, unique=True),
-        Column("created_at", DateTime, default=datetime.utcnow()),
-        Column(
-            "updated_at",
-            DateTime,
-            default=datetime.utcnow(),
-            onupdate=datetime.utcnow(),
-        ),
-    )
-
-    __mapper_args__ = {
-        "properties": {
-            "manga": relationship("Manga", backref="area"),
-        },
-    }
-
-    name: str
-    manga: List[Manga] = field(init=False, default_factory=list)
+        self.authors = other.authors
 
 
 @dataclass
