@@ -3,10 +3,10 @@ import base64
 from books_scrapy.items import *
 from books_scrapy.items import QTcmsObject
 from books_scrapy.utils import *
-from books_scrapy.spiders import Spider
+from books_scrapy.spiders import BookSpider
 
 
-class The517MangaSpider(Spider):
+class The517MangaSpider(BookSpider):
     name = "www.517manhua.com"
     img_base_url = None
     qTcms_m_indexurl = "http://images.yiguahai.com"
@@ -29,10 +29,9 @@ class The517MangaSpider(Spider):
 
         excerpt = main.xpath("./div[contains(@class, 'work-introd')]//p/text()").get()
 
-        authors = main.xpath(
+        fmt_author_string: str = main.xpath(
             "./p[contains(@class, 'works-info-tc')]//em/a/text()"
-        ).get()
-        authors = authors.split("/") if authors else None
+        ).get() or ""
 
         status = main.xpath(
             "./p[contains(@class, 'works-info-tc')][position()=2]/span[last()]/em/text()"
@@ -44,8 +43,8 @@ class The517MangaSpider(Spider):
             name=name,
             ref_urls=[response.url],
             schedule=0,
+            authors=[Author(name=name) for name in fmt_author_string.split("/")],
         )
-        manga.authors = authors
 
         return manga
 
