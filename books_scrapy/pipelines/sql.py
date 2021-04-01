@@ -1,7 +1,8 @@
 import logging
+from sys import audit
 
 from books_scrapy.items import Author, Manga, MangaArea, MangaChapter
-from books_scrapy.utils import list_diff
+from books_scrapy.utils import iter_diff
 from scrapy.exceptions import DropItem
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
@@ -22,7 +23,7 @@ class MySQLPipeline:
         return cls(crawler)
 
     def open_spider(self, spider):
-        engine = create_engine(self.settings["MYSQL_URL"], encoding="utf8")
+        engine = create_engine(self.settings["MYSQL_URL"], encoding="utf8", echo=True)
         self.session: Session = sessionmaker(bind=engine)()
 
     def close_spider(self, spider):
@@ -32,6 +33,8 @@ class MySQLPipeline:
         session = self.session
 
         exsit_item = None
+        # Identifier for whether to add new one or just run update.
+        is_add = True
 
         if isinstance(item, Manga):
             item.signature = item.make_signature()
@@ -41,7 +44,7 @@ class MySQLPipeline:
             )
 
             # Make relationship between manga and areas.
-            # This operation is only triggered when `item.area` not None and `exsit_item` 
+            # This operation is only triggered when `item.area` not None and `exsit_item`
             # is None or `exsit_item` not None  and`exsit_item.area_id` is None.
             if item.area and (
                 not exsit_item or (exsit_item and not exsit_item.area_id)
@@ -50,7 +53,7 @@ class MySQLPipeline:
                 # save `item.area` as new `MangaArea` item. then asign id value to `item`.
                 area_id = (
                     session.query(MangaArea.id)
-                    .filter(MangaArea.name == item.area)
+                    .filter(MangaArea.name == item.area.name)
                     .first()
                 )
                 if area_id:
@@ -72,17 +75,20 @@ class MySQLPipeline:
             # Register zombie user for new author that not exsit in saved `manga.authors`
             # and update `manga.authors` to new value.
             # For some reasons, we only do incremental updates for book author relationship.
-            for i in list_diff(orig_authors, item.authors).added:
+            for i in iter_diff(orig_authors, item.authors).added:
                 written = self._handle_write(i)
                 orig_authors.append(written)
                 item.authors = orig_authors
 
             if exsit_item:
                 exsit_item.merge(item)
+                is_add = False
             else:
                 exsit_item = item
+
         elif isinstance(item, MangaChapter):
             item.signature = item.make_signature()
+            is_add = False
 
             exsit_item = (
                 session.query(Manga)
@@ -104,14 +110,19 @@ class MySQLPipeline:
                 item.book_id = exsit_item.id
                 exsit_item.chapters.append(item)
 
-        return self._handle_write(exsit_item)
+        return self._handle_write(exsit_item, is_add=is_add)
 
-    def _handle_write(self, item):
-        if item:
-            try:
-                self.session.add(item)
-                self.session.commit()
-            except SQLAlchemyError as e:
-                self.logger.error(e)
-                self.session.rollback()
+    def _handle_write(self, item, is_add=True):
+        """
+        Flush changes and add new item to db if is_add is true.
+        """
+        if item and is_add:
+            self.session.add(item)
+
+        try:
+            self.session.commit()
+        except SQLAlchemyError as e:
+            self.logger.error(e)
+            self.session.rollback()
+
         return item
