@@ -50,3 +50,11 @@ def list_extend(lhs, rhs):
     lhs = lhs or []
     rhs = rhs or []
     return list(set(lhs + rhs)) or None
+
+
+def list_diff(orig, new):
+    new = new or []
+    return dict(
+        added=list(filter(lambda x: x not in orig, new)),
+        removed=list(filter(lambda x: x not in new), orig),
+    )
