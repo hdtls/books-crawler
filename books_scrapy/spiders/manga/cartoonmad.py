@@ -1,11 +1,11 @@
 import os
 
 from books_scrapy.items import *
-from books_scrapy.spiders import Spider
+from books_scrapy.spiders import BookSpider
 from books_scrapy.utils import *
 
 
-class CartoonMadSpider(Spider):
+class CartoonMadSpider(BookSpider):
     name = "www.cartoonmad.com"
     base_url = "https://www.cartoonmad.com"
     img_base_url = "https://www.cartoonmad.com/comic/comicpic.asp?file=/"

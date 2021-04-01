@@ -8,7 +8,7 @@ from scrapy_redis.spiders import RedisSpider
 
 from books_scrapy.utils import fmt_meta
 
-class Spider(RedisSpider):
+class BookSpider(RedisSpider):
     """Base class for book spiders."""
 
     def parse(self, response, **kwargs):

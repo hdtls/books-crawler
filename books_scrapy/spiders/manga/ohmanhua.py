@@ -4,12 +4,12 @@ import re
 
 from books_scrapy.items import *
 from books_scrapy.utils import *
-from books_scrapy.spiders import Spider
+from books_scrapy.spiders import BookSpider
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 
-class OHManhuaSpider(Spider):
+class OHManhuaSpider(BookSpider):
     name = "www.cocomanhua.com"
     base_url = "https://www.cocomanhua.com"
     start_urls = [

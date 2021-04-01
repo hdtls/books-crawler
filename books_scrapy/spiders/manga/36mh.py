@@ -1,9 +1,9 @@
 from books_scrapy.items import *
 from books_scrapy.utils import *
-from books_scrapy.spiders import Spider
+from books_scrapy.spiders import BookSpider
 
 
-class The36MHSpider(Spider):
+class The36MHSpider(BookSpider):
     name = "www.36mh.net"
     base_url = "https://www.36mh.net"
     img_base_url = "https://img001.microland-design.com"
