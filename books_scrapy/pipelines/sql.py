@@ -1,6 +1,6 @@
 import logging
 
-from books_scrapy.items import Author, Manga, MangaChapter
+from books_scrapy.items import Author, Manga, MangaArea, MangaChapter
 from books_scrapy.utils import list_diff
 from scrapy.exceptions import DropItem
 from sqlalchemy.exc import SQLAlchemyError
@@ -40,13 +40,33 @@ class MySQLPipeline:
                 session.query(Manga).filter(Manga.signature == item.signature).first()
             )
 
+            # Make relationship between manga and areas.
+            # This operation is only triggered when `item.area` not None and `exsit_item` 
+            # is None or `exsit_item` not None  and`exsit_item.area_id` is None.
+            if item.area and (
+                not exsit_item or (exsit_item and not exsit_item.area_id)
+            ):
+                # Try to query `MangaArea.id` from db. If exsit write it to `item` else
+                # save `item.area` as new `MangaArea` item. then asign id value to `item`.
+                area_id = (
+                    session.query(MangaArea.id)
+                    .filter(MangaArea.name == item.area)
+                    .first()
+                )
+                if area_id:
+                    item.area_id = area_id
+                else:
+                    item.area_id = self._handle_write(item.area).id
+
             orig_authors = []
             if exsit_item:
                 orig_authors = exsit_item.authors
             else:
                 # Query all authors that name in item.authors
                 orig_authors = (
-                    session.query(Author).filter(Author.name.in_(item.authors)).all()
+                    session.query(Author)
+                    .filter(Author.name.in_(map(lambda e: e.name, item.authors)))
+                    .all()
                 )
 
             # Register zombie user for new author that not exsit in saved `manga.authors`
