@@ -4,12 +4,11 @@
 # your spiders.
 
 import os
-import scrapy
+from scrapy_redis.spiders import RedisSpider
 
 from books_scrapy.utils import fmt_meta
 
-
-class Spider(scrapy.Spider):
+class Spider(RedisSpider):
     """Base class for book spiders."""
 
     def parse(self, response, **kwargs):
@@ -23,7 +22,7 @@ class Spider(scrapy.Spider):
 
         book_catalog = self.get_book_catalog(response)
 
-        file_path = self.get_file_store(book_info.fingerprint)
+        file_path = self.get_file_store(book_info.make_signature())
 
         if os.path.exists(file_path) and len(os.listdir(file_path)) >= len(
             book_catalog
@@ -35,7 +34,7 @@ class Spider(scrapy.Spider):
         yield from response.follow_all(
             book_catalog,
             self.parse_chapter_data,
-            meta=fmt_meta(book_info.fingerprint),
+            meta=fmt_meta(book_info.make_signature()),
         )
 
     def get_book_info(self, response):
@@ -61,7 +60,7 @@ class Spider(scrapy.Spider):
     def parse_chapter_data(self, response):
         """
         Parse chapter page data. Override this function to provide parsing logic.
-        All response have meta which value is fingerprint of this book.
+        All response have meta which value is signature of this book.
         """
         raise NotImplementedError(
             f"{self.__class__.__name__}.parse_chapter_data is not implemented."
