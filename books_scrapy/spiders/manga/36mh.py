@@ -16,30 +16,31 @@ class The36MHSpider(BookSpider):
 
         excerpt = fmt_label(response.xpath("//div[@id='intro-all']//p/text()").get())
 
-        cover_image = dict(
-            url=response.xpath("//div[contains(@class, 'book-cover')]/p/img/@src").get()
-        )
+        cover_img_url = response.xpath(
+            "//div[contains(@class, 'book-cover')]/p/img/@src"
+        ).get()
 
         for span in response.xpath("//ul[contains(@class, 'detail-list')]//span"):
             label = span.xpath("./strong/text()").get()
             text = span.xpath("./a/text()").get()
             if label == "漫画地区：":
-                area = text
-            elif label == "字母索引：":
-                index = text
+                area = MangaArea(name=text) if text else None
             elif label == "漫画剧情：":
-                categories = span.xpath("./a/text()").getall()
+                categories = [
+                    MangaCategory(name=name)
+                    for name in span.xpath("./a/text()").getall()
+                ]
             elif label == "漫画作者：":
-                authors = fmt_label(text).split(",")
+                authors = [Author(name=name) for name in fmt_label(text).split(",")]
             elif label == "漫画状态：":
-                status = text
+                schedule = 1 if "完结" in text else 0
 
         # TODO: Manga aliases serializng if have.
         return Manga(
             name=name,
-            cover_image=cover_image,
+            cover_image=dict(url=cover_img_url, ref_urls=[cover_img_url]),
             authors=authors,
-            status=status,
+            schedule=schedule,
             categories=categories,
             excerpt=excerpt,
             area=area,
@@ -74,7 +75,7 @@ class The36MHSpider(BookSpider):
             name=name,
             books_query_id=revert_fmt_meta(response.meta),
             ref_urls=[response.url],
-            image_urls=image_urls,
         )
+        chapter.image_urls = (image_urls,)
 
         yield chapter

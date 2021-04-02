@@ -30,19 +30,18 @@ mapper_registry = registry()
 
 
 class Level(enum.Enum):
-    ZOMBIE = "zombie"
+    zombie = "zombie"
 
 
 @dataclass
 @mapper_registry.mapped
 class Author:
-
     __table__ = Table(
         "users",
         mapper_registry.metadata,
         Column("id", BigInteger, autoincrement=True, nullable=False, primary_key=True),
         Column("name", String, nullable=False, unique=True),
-        # Column("level", Enum(Level), default=Level.ZOMBIE, nullable=False),
+        Column("level", Enum(Level), default=Level.zombie, nullable=False),
         Column("created_at", DateTime, default=datetime.utcnow()),
         Column(
             "updated_at",
@@ -56,6 +55,31 @@ class Author:
 
     def __eq__(self, o: object) -> bool:
         if not isinstance(o, Author):
+            return False
+        return self.name == o.name
+
+
+@dataclass
+@mapper_registry.mapped
+class MangaCategory:
+    __table__ = Table(
+        "manga_categories",
+        mapper_registry.metadata,
+        Column("id", BigInteger, autoincrement=True, nullable=False, primary_key=True),
+        Column("name", String, nullable=False, unique=True),
+        Column("created_at", DateTime, default=datetime.utcnow()),
+        Column(
+            "updated_at",
+            DateTime,
+            default=datetime.utcnow(),
+            onupdate=datetime.utcnow(),
+        ),
+    )
+
+    name: str
+
+    def __eq__(self, o: object) -> bool:
+        if not isinstance(o, MangaCategory):
             return False
         return self.name == o.name
 
@@ -141,11 +165,19 @@ class MangaChapter(Chapter):
 
 
 author_published_manga = Table(
-    "users_authored_manga",
+    "users_manga_linkers",
     mapper_registry.metadata,
     Column("id", BigInteger, autoincrement=True, nullable=False, primary_key=True),
     Column("from", BigInteger, ForeignKey("users.id")),
-    Column("book_id", BigInteger, ForeignKey("manga.id")),
+    Column("to", BigInteger, ForeignKey("manga.id")),
+)
+
+categorized_manga = Table(
+    "manga_categories_manga_linkers",
+    mapper_registry.metadata,
+    Column("id", BigInteger, autoincrement=True, nullable=False, primary_key=True),
+    Column("from", BigInteger, ForeignKey("manga_categories.id")),
+    Column("to", BigInteger, ForeignKey("manga.id")),
 )
 
 
@@ -182,6 +214,9 @@ class Manga:
             "authors": relationship(
                 "Author", secondary=author_published_manga, backref="manga"
             ),
+            "categories": relationship(
+                "MangaCategory", secondary=categorized_manga, backref="manga"
+            ),
         }
     }
 
@@ -197,12 +232,12 @@ class Manga:
     copyrighted: bool = field(default=False, init=False)
     ref_urls: Optional[List[str]] = None
     # Use for update `area_id` this is not db column.
-    area: Optional[str] = None
+    area: Optional[MangaArea] = None
     # area_id: Optional[int] = field(default=None, init=False, repr=False)
     aliases: Optional[List[str]] = None
     background_image: Optional[dict] = None
     promo_image: Optional[dict] = None
-    categories: Optional[List[str]] = None
+    categories: Optional[List[MangaCategory]] = None
     # Children relationshp
     chapters: Optional[List[MangaChapter]] = None
 
@@ -220,7 +255,6 @@ class Manga:
         Incremental merge two non-copyright manga object properties.
         all properties that describe database relationship will be ignored.
         """
-
         if not isinstance(other, Manga) or self.copyrighted:
             return
 
@@ -232,7 +266,12 @@ class Manga:
         self.ref_urls = list_extend(self.ref_urls, other.ref_urls)
         self.background_image = self.background_image or other.background_image
         self.promo_image = self.background_image or other.background_image
-        [self.authors.append(author) for author in iter_diff(self.authors, other.authors).added]
+
+        for author in iter_diff(self.authors, other.authors).added:
+            self.authors.append(author)
+
+        for category in iter_diff(self.categories, other.categories).added:
+            self.categories.append(category)
 
 
 @dataclass

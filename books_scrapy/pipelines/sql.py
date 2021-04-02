@@ -1,7 +1,6 @@
 import logging
-from sys import audit
 
-from books_scrapy.items import Author, Manga, MangaArea, MangaChapter
+from books_scrapy.items import Author, Manga, MangaArea, MangaCategory, MangaChapter
 from books_scrapy.utils import iter_diff
 from scrapy.exceptions import DropItem
 from sqlalchemy.exc import SQLAlchemyError
@@ -13,7 +12,6 @@ class MySQLPipeline:
     def __init__(self, crawler):
         """
         Initialize database connection and sessionmaker
-        Create tables
         """
         self.settings = crawler.settings
         self.logger = logging.getLogger(__name__)
@@ -23,7 +21,7 @@ class MySQLPipeline:
         return cls(crawler)
 
     def open_spider(self, spider):
-        engine = create_engine(self.settings["MYSQL_URL"], encoding="utf8", echo=True)
+        engine = create_engine(self.settings["MYSQL_URL"], encoding="utf8")
         self.session: Session = sessionmaker(bind=engine)()
 
     def close_spider(self, spider):
@@ -43,9 +41,9 @@ class MySQLPipeline:
                 session.query(Manga).filter(Manga.signature == item.signature).first()
             )
 
-            # Make relationship between manga and areas.
-            # This operation is only triggered when `item.area` not None and `exsit_item`
-            # is None or `exsit_item` not None  and`exsit_item.area_id` is None.
+            # Link manga and area.
+            # This operation is only triggered when `item.area` is not None and `exsit_item`
+            # is None or `exsit_item` not None but `exsit_item.area_id` is None.
             if item.area and (
                 not exsit_item or (exsit_item and not exsit_item.area_id)
             ):
@@ -61,6 +59,7 @@ class MySQLPipeline:
                 else:
                     item.area_id = self._handle_write(item.area).id
 
+            # Make relationship between manga and authors.
             orig_authors = []
             if exsit_item:
                 orig_authors = exsit_item.authors
@@ -79,6 +78,24 @@ class MySQLPipeline:
                 written = self._handle_write(i)
                 orig_authors.append(written)
                 item.authors = orig_authors
+
+            # Link manga and categories.
+            orig_CAT = None
+            if exsit_item:
+                orig_CAT = exsit_item.categories
+            else:
+                orig_CAT = (
+                    session.query(MangaCategory)
+                    .filter(
+                        MangaCategory.name.in_(map(lambda e: e.name, item.categories))
+                    )
+                    .all()
+                )
+
+            for i in iter_diff(orig_CAT, item.categories).added:
+                written = self._handle_write(i)
+                orig_CAT.append(written)
+                item.categories = orig_CAT
 
             if exsit_item:
                 exsit_item.merge(item)
