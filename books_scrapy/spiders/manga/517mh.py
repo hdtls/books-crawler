@@ -21,28 +21,33 @@ class The517MangaSpider(BookSpider):
             "./div[contains(@class, 'mh-date-info-name')]//a/text()"
         ).get()
 
-        cover_image = dict(
-            url=response.xpath(
-                "//div[contains(@class, 'mh-date-bgpic')]//img/@src"
-            ).get()
-        )
+        cover_img_url = response.xpath(
+            "//div[contains(@class, 'mh-date-bgpic')]//img/@src"
+        ).get()
 
         excerpt = main.xpath("./div[contains(@class, 'work-introd')]//p/text()").get()
 
-        fmt_author_string: str = main.xpath(
-            "./p[contains(@class, 'works-info-tc')]//em/a/text()"
-        ).get() or ""
+        fmt_author_string: str = fmt_label(
+            main.xpath("./p[contains(@class, 'works-info-tc')]//em/a/text()").get()
+        )
 
-        status = main.xpath(
-            "./p[contains(@class, 'works-info-tc')][position()=2]/span[last()]/em/text()"
-        ).get()
+        schedule = (
+            1
+            if "完结"
+            in fmt_label(
+                main.xpath(
+                    "./p[contains(@class, 'works-info-tc')][position()=2]/span[last()]/em/text()"
+                ).get()
+            )
+            else 0
+        )
 
         manga = Manga(
-            cover_image=cover_image,
+            cover_image=dict(url=cover_img_url, ref_urls=[cover_img_url]),
             excerpt=excerpt,
             name=name,
             ref_urls=[response.url],
-            schedule=0,
+            schedule=schedule,
             authors=[Author(name=name) for name in fmt_author_string.split("/")],
         )
 
