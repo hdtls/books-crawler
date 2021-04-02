@@ -18,16 +18,14 @@ class CartoonMadSpider(BookSpider):
 
         img_url = self.base_url + tr_list[1].css("img::attr(src)").get()
 
-        cover_image = dict(url=img_url)
-
-        authors = tr_list.css("tr:nth-child(5) td::text").get().strip()[6:].split(",")
-        categories = tr_list.css("tr:nth-child(3) a::text").get()
+        authors = [Author(name=name) for name in tr_list.css("tr:nth-child(5) td::text").get().strip()[6:].split(",")]
+        categories = [MangaCategory(name=name) for name in tr_list.css("tr:nth-child(3) a::text").get()]
         # manga_excerpt = html.css("fieldset td::text").get().strip()
         excerpt = fmt_meta(fmt_label(response.xpath("//fieldset//td/text()").get()))
 
         return Manga(
             name=name,
-            cover_image=cover_image,
+            cover_image=dict(url=img_url, ref_urls=[img_url]),
             authors=authors,
             categories=categories,
             excerpt=excerpt,
