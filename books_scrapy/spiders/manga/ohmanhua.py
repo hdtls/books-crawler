@@ -27,14 +27,6 @@ class OHManhuaSpider(BookSpider):
             "//dt[contains(@class, 'fed-deta-images')]/a/@data-original"
         ).get()
 
-        cover_image = dict(url=img_url)
-
-        area = None
-        aliases = None
-        status = None
-        authors = []
-        categories = None
-        excerpt = ""
         # html.css("dd.fed-deta-content ul li")
         for li in response.xpath("//dd[contains(@class, 'fed-deta-content')]/ul/li"):
             # label = li.css("span::text").get()
@@ -49,8 +41,7 @@ class OHManhuaSpider(BookSpider):
                 aliases = fmt_label(aliases[0]) if len(aliases) >= 1 else ""
                 aliases = aliases.split(",")
             elif label == "状态":
-                # status = text
-                status = text
+                schedule = 1 if "完结" in text else 0
             elif label == "作者":
                 if text.startswith("作者:"):
                     text = fmt_label(text[3:])
@@ -60,9 +51,11 @@ class OHManhuaSpider(BookSpider):
                     authors = text.split("x")
                 else:
                     authors = [text]
+                authors = list(map(lambda name: Author(name=name), authors))
             elif label == "类别":
                 # categories = li.css("a::text").getall()
                 categories = li.xpath("./a/text()").getall()
+                categories = list(map(lambda name: MangaCategory(name=name), categories))
             elif label == "简介":
                 # excerpt = li.css("div::text").get()
                 excerpt = li.xpath("./div/text()").get()
@@ -70,12 +63,11 @@ class OHManhuaSpider(BookSpider):
         return Manga(
             name=name,
             aliases=aliases,
-            cover_image=cover_image,
+            cover_image=dict(url=img_url, ref_urls=[img_url]),
             authors=authors,
-            status=status,
+            schedule=schedule,
             categories=categories,
             excerpt=excerpt,
-            area=area,
             ref_urls=[response.url],
         )
 
