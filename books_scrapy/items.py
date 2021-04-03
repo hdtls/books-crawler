@@ -6,10 +6,9 @@
 import enum
 import hashlib
 
-from datetime import datetime
-
 from books_scrapy.utils import iter_diff, list_extend
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Optional, List
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.decl_api import registry
@@ -85,13 +84,6 @@ class MangaCategory:
 
 
 @dataclass
-class Chapter:
-    name: str
-    ref_urls: Optional[List[str]]
-    books_query_id: str = field(repr=False)
-
-
-@dataclass
 @mapper_registry.mapped
 class MangaArea:
     __table__ = Table(
@@ -122,9 +114,9 @@ class MangaArea:
         return self.name == o.name
 
 
-@dataclass
+@dataclass(repr=False)
 @mapper_registry.mapped
-class MangaChapter(Chapter):
+class MangaChapter:
     __table__ = Table(
         "manga_chapters",
         mapper_registry.metadata,
@@ -143,8 +135,11 @@ class MangaChapter(Chapter):
         ),
     )
 
+    name: str
     signature: str
-    image_urls: List[dict]
+    books_query_id: str = field(default_factory=str)
+    image_urls: List[dict] = field(default_factory=list)
+    ref_urls: Optional[List[str]] = None
 
     @property
     def page_size(self):
@@ -193,7 +188,7 @@ class Manga:
         Column("excerpt", Text, nullable=False),
         Column("cover_image", JSON(none_as_null=True), nullable=False),
         Column("copyrighted", Boolean, default=False, nullable=False),
-        Column("schedule", Integer, nullable=False),
+        Column("schedule", Integer, default=0, nullable=False),
         Column("ref_urls", JSON(none_as_null=True)),
         Column("aliases", JSON(none_as_null=True)),
         Column("background_image", JSON(none_as_null=True)),
@@ -226,10 +221,10 @@ class Manga:
     signature: str
     # Schedule for manga publishing. there only have two value,
     # 0 for inprogress or 1 for finished.
-    schedule: int
+    schedule: int = 0
     # Relationship property remove from init.
-    authors: List[Author] = field(init=False)
-    copyrighted: bool = field(default=False, init=False)
+    authors: List[Author] = field(default_factory=list)
+    copyrighted: bool = field(default=False)
     ref_urls: Optional[List[str]] = None
     # Use for update `area_id` this is not db column.
     area: Optional[MangaArea] = None
