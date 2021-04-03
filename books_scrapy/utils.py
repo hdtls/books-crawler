@@ -19,12 +19,12 @@ def fmt_url_path(path):
     return path if path.startswith("/") else path[1:]
 
 
-def fmt_meta(arg):
-    return {"__meta_key": arg}
+def format_meta(arg):
+    return {"__meta__": arg}
 
 
-def revert_fmt_meta(arg):
-    return arg["__meta_key"]
+def revert_formatted_meta(arg):
+    return arg["__meta__"]
 
 
 def get_img_store(settings, rt, mid, last=None):
