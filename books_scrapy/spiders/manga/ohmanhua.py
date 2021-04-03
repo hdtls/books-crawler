@@ -1,4 +1,5 @@
 import base64
+from books_scrapy.loaders import MangaChapterLoader, MangaLoader
 import demjson
 import re
 
@@ -11,65 +12,38 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 class OHManhuaSpider(BookSpider):
     name = "www.cocomanhua.com"
-    base_url = "https://www.cocomanhua.com"
-    start_urls = [
-        "https://www.cocomanhua.com/10129/",
-    ]
 
     def get_book_info(self, response):
-        # name = html.css("dd.fed-deta-content h1::text").get()
-        name = response.xpath(
-            "//dd[contains(@class, 'fed-deta-content')]/h1/text()"
-        ).get()
+        loader = MangaLoader(response=response)
+        loader.add_xpath("name", "//dd[contains(@class, 'fed-deta-content')]/h1/text()")
+        loader.add_xpath(
+            "cover_image", "//dt[contains(@class, 'fed-deta-images')]/a/@data-original"
+        )
+        loader.add_value("ref_urls", [response.url])
 
-        # img_url = html.css("dt.fed-deta-images a::attr(data-original)").get()
-        img_url = response.xpath(
-            "//dt[contains(@class, 'fed-deta-images')]/a/@data-original"
-        ).get()
-
-        # html.css("dd.fed-deta-content ul li")
         for li in response.xpath("//dd[contains(@class, 'fed-deta-content')]/ul/li"):
-            # label = li.css("span::text").get()
             label = li.xpath(".//span/text()").get()
-            # text = li.css("a::text").get()
             text = li.xpath("./a/text()").get()
             if label == "别名":
-                # There is an empty " " in results that should be ignored.
-                aliases = list(
-                    filter(lambda str: str != " ", li.xpath("./text()").getall())
+                # 17892
+                loader.add_value(
+                    "aliases",
+                    next(filter(lambda str: str != " ", li.xpath("./text()").getall())),
                 )
-                aliases = fmt_label(aliases[0]) if len(aliases) >= 1 else ""
-                aliases = aliases.split(",")
             elif label == "状态":
-                schedule = 1 if "完结" in text else 0
+                loader.add_value("schedule", text)
             elif label == "作者":
-                if text.startswith("作者:"):
-                    text = fmt_label(text[3:])
-                if " " in text:
-                    authors = text.split(" ")
-                elif "x" in text:
-                    authors = text.split("x")
-                else:
-                    authors = [text]
-                authors = list(map(lambda name: Author(name=name), authors))
+                # Wrong author label e.g. https://www.cocomanhua.com/17823/
+                loader.add_value(
+                    "authors",
+                    text[3:] if text.startswith("作者:") else text,
+                )
             elif label == "类别":
-                # categories = li.css("a::text").getall()
-                categories = li.xpath("./a/text()").getall()
-                categories = list(map(lambda name: MangaCategory(name=name), categories))
+                loader.add_value("categories", li.xpath("./a/text()").getall())
             elif label == "简介":
-                # excerpt = li.css("div::text").get()
-                excerpt = li.xpath("./div/text()").get()
+                loader.add_value("excerpt", li.xpath("./div/text()").get())
 
-        return Manga(
-            name=name,
-            aliases=aliases,
-            cover_image=dict(url=img_url, ref_urls=[img_url]),
-            authors=authors,
-            schedule=schedule,
-            categories=categories,
-            excerpt=excerpt,
-            ref_urls=[response.url],
-        )
+        return loader.load_item()
 
     def get_book_catalog(self, response):
         return response.xpath("//div[contains(@class, 'all_data_list')]//li/a")
@@ -85,10 +59,11 @@ class OHManhuaSpider(BookSpider):
         if not loaded_chapter:
             return
 
-        name = loaded_chapter["pagename"]
-        page_size = loaded_chapter["page_size"]
+        if not loaded_chapter["page_size"]:
+            return
 
-        image_urls = []
+        page_size = int(loaded_chapter["page_size"])
+
         base_url = (
             "https://"
             + loaded_chapter["domain"]
@@ -96,27 +71,25 @@ class OHManhuaSpider(BookSpider):
             + loaded_chapter["img_url_path"]
         )
 
-        for img_index in range(page_size):
-            img_url = (
-                base_url
-                + str(int(loaded_chapter["startimg"]) + img_index).zfill(4)
-                + ".jpg"
-            )
-            img_name = str(img_index).zfill(4) + ".jpg"
-            image = dict(
-                name=img_name,
-                url=img_url,
-            )
-            image_urls.append(image)
-
-        chapter = MangaChapter(
-            name=name,
-            book_id=revert_fmt_meta(response.meta),
-            ref_urls=[response.url],
-            image_urls=image_urls,
+        start_index = (
+            int(loaded_chapter["startimg"]) if loaded_chapter["startimg"] else 0
         )
 
-        yield chapter
+        loader = MangaChapterLoader()
+        loader.add_value("name", loaded_chapter["pagename"])
+        loader.add_value("books_query_id", revert_formatted_meta(response.meta))
+        loader.add_value("ref_urls", [response.url])
+        loader.add_value(
+            "image_urls",
+            list(
+                map(
+                    lambda page: base_url + str(start_index + page).zfill(4) + ".jpg",
+                    range(page_size),
+                )
+            ),
+        )
+
+        yield loader.load_item()
 
     @staticmethod
     def _load_chapter(ciphertext):

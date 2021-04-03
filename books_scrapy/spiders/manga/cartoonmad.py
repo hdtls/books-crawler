@@ -1,5 +1,5 @@
-import os
-
+from json import load
+from books_scrapy.loaders import MangaChapterLoader, MangaLoader
 from books_scrapy.items import *
 from books_scrapy.spiders import BookSpider
 from books_scrapy.utils import *
@@ -7,30 +7,28 @@ from books_scrapy.utils import *
 
 class CartoonMadSpider(BookSpider):
     name = "www.cartoonmad.com"
-    base_url = "https://www.cartoonmad.com"
-    img_base_url = "https://www.cartoonmad.com/comic/comicpic.asp?file=/"
-    start_urls = ["https://www.cartoonmad.com/comic/8113.html"]
 
     def get_book_info(self, response):
-        name = response.css("title::text").get()[:-14].strip()
+        loader = MangaLoader(response=response)
 
-        tr_list = response.css("td:nth-child(2) tr:nth-child(4) tr:nth-child(2)")
-
-        img_url = self.base_url + tr_list[1].css("img::attr(src)").get()
-
-        authors = [Author(name=name) for name in tr_list.css("tr:nth-child(5) td::text").get().strip()[6:].split(",")]
-        categories = [MangaCategory(name=name) for name in tr_list.css("tr:nth-child(3) a::text").get()]
-        # manga_excerpt = html.css("fieldset td::text").get().strip()
-        excerpt = fmt_meta(fmt_label(response.xpath("//fieldset//td/text()").get()))
-
-        return Manga(
-            name=name,
-            cover_image=dict(url=img_url, ref_urls=[img_url]),
-            authors=authors,
-            categories=categories,
-            excerpt=excerpt,
-            ref_urls=[response.url],
+        loader.add_value("name", response.xpath("//title/text()").get().split(" - ")[0])
+        loader.add_xpath("excerpt", "//fieldset//td/text()")
+        loader.add_value("ref_urls", [response.url])
+        loader.add_value(
+            "cover_image",
+            "https://www.cartoonmad.com/comic/comicpic.asp?file=/"
+            + response.css(
+                "td:nth-child(2) tr:nth-child(4) tr:nth-child(2) img::attr(src)"
+            ).get(),
         )
+
+        nested_loader = loader.nested_css("td:nth-child(2) tr:nth-child(4)")
+        nested_loader.add_css("categories", "tr:nth-child(14) a::text")
+        nested_loader.add_css(
+            "authors", "tr:nth-child(2) tr:nth-child(5) td::text", re=r"原創作者： (.*)"
+        )
+
+        return loader.load_item()
 
     def get_book_catalog(self, response):
         return response.xpath("//fieldset//tr/td//a")
@@ -42,36 +40,31 @@ class CartoonMadSpider(BookSpider):
             "//img[contains(@src, '/comicpic.asp?file=')]/@src"
         ).get()
 
+        if not img_url:
+            # Only support asp query url.
+            return
+
         page_size = list(
             filter(
                 lambda p: p.isdigit(),
                 response.xpath("//a[@class='pages']/text()").getall(),
             )
         ).pop()
+
         page_size = int(page_size)
 
-        if not img_url:
-            # Only support asp query url.
-            return
+        loader = MangaChapterLoader(response=response)
 
-        image_urls = []
-
-        for page in range(1, page_size + 1):
-            img_name = str(page).zfill(4) + ".jpg"
-            img_url = img_url[:-3] + str(page).zfill(3)
-
-            image = dict(
-                name=img_name,
-                url=img_url,
-            )
-
-            image_urls.append(image)
-
-        chapter = MangaChapter(
-            name=response.xpath("//title/text()").get().split(" - ")[1],
-            books_query_id=revert_fmt_meta(response.meta),
-            ref_urls=[response.url],
-            image_urls=image_urls,
+        loader.add_value("name", response.xpath("//title/text()").get().split(" - ")[1])
+        loader.add_value("books_query_id", revert_formatted_meta(response.meta))
+        loader.add_value("ref_urls", [response.url])
+        loader.add_value(
+            "image_urls",
+            list(
+                map(
+                    lambda page: img_url[:-3] + str(page + 1).zfill(3), range(page_size)
+                )
+            ),
         )
 
-        yield chapter
+        yield loader.load_item()

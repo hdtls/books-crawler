@@ -1,3 +1,4 @@
+from books_scrapy.loaders import MangaChapterLoader, MangaLoader
 from books_scrapy.items import *
 from books_scrapy.utils import *
 from books_scrapy.spiders import BookSpider
@@ -5,47 +6,30 @@ from books_scrapy.spiders import BookSpider
 
 class The36MHSpider(BookSpider):
     name = "www.36mh.net"
-    base_url = "https://www.36mh.net"
-    img_base_url = "https://img001.microland-design.com"
-    start_urls = ["https://www.36mh.net/manhua/nvzixueyuandenansheng/"]
 
     def get_book_info(self, response):
-        name = response.xpath(
-            "//div[contains(@class, 'book-title')]//span/text()"
-        ).get()
+        loader = MangaLoader(response=response)
 
-        excerpt = fmt_label(response.xpath("//div[@id='intro-all']//p/text()").get())
-
-        cover_img_url = response.xpath(
-            "//div[contains(@class, 'book-cover')]/p/img/@src"
-        ).get()
+        loader.add_xpath("name", "//div[contains(@class, 'book-title')]//span/text()")
+        loader.add_xpath("excerpt", "//div[@id='intro-all']//p/text()")
+        loader.add_xpath(
+            "cover_image", "//div[contains(@class, 'book-cover')]/p/img/@src"
+        )
+        loader.add_value("ref_urls", [response.url])
 
         for span in response.xpath("//ul[contains(@class, 'detail-list')]//span"):
             label = span.xpath("./strong/text()").get()
             text = span.xpath("./a/text()").get()
             if label == "漫画地区：":
-                area = MangaArea(name=text) if text else None
+                loader.add_value("area", text)
             elif label == "漫画剧情：":
-                categories = [
-                    MangaCategory(name=name)
-                    for name in span.xpath("./a/text()").getall()
-                ]
+                loader.add_value("categories", span.xpath("./a/text()").getall())
             elif label == "漫画作者：":
-                authors = [Author(name=name) for name in fmt_label(text).split(",")]
+                loader.add_value("authors", text)
             elif label == "漫画状态：":
-                schedule = 1 if "完结" in text else 0
+                loader.add_value("schedule", text)
 
-        # TODO: Manga aliases serializng if have.
-        return Manga(
-            name=name,
-            cover_image=dict(url=cover_img_url, ref_urls=[cover_img_url]),
-            authors=authors,
-            schedule=schedule,
-            categories=categories,
-            excerpt=excerpt,
-            area=area,
-            ref_urls=[response.url],
-        )
+        return loader.load_item()
 
     def get_book_catalog(self, response):
         return response.xpath("//ul[@id='chapter-list-4']/li/a")
@@ -58,24 +42,19 @@ class The36MHSpider(BookSpider):
         if not (img_name_list and path):
             return
 
-        name = response.xpath(
-            "//div[contains(@class, 'w996 title pr')]/h2/text()"
-        ).get()
+        loader = MangaChapterLoader(response=response)
 
-        image_urls = []
-
-        for index, url in enumerate(img_name_list):
-            image = dict(
-                url=self.img_base_url + "/" + path + url,
-                name=str(index + 1).zfill(4) + ".jpg",
-            )
-            image_urls.append(image)
-
-        chapter = MangaChapter(
-            name=name,
-            books_query_id=revert_fmt_meta(response.meta),
-            ref_urls=[response.url],
+        loader.add_xpath("name", "//div[contains(@class, 'w996 title pr')]/h2/text()")
+        loader.add_value("books_query_id", revert_formatted_meta(response.meta))
+        loader.add_value("ref_urls", [response.url])
+        loader.add_value(
+            "image_urls",
+            list(
+                map(
+                    lambda url: "https://img001.microland-design.com/" + path + url,
+                    img_name_list,
+                )
+            ),
         )
-        chapter.image_urls = (image_urls,)
 
-        yield chapter
+        yield loader.load_item()

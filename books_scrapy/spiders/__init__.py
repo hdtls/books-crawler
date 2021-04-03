@@ -3,10 +3,8 @@
 # Please refer to the documentation for information on how to create and manage
 # your spiders.
 
-import os
+from books_scrapy.utils import format_meta
 from scrapy_redis.spiders import RedisSpider
-
-from books_scrapy.utils import fmt_meta
 
 class BookSpider(RedisSpider):
     """Base class for book spiders."""
@@ -22,19 +20,10 @@ class BookSpider(RedisSpider):
 
         book_catalog = self.get_book_catalog(response)
 
-        file_path = self.get_file_store(book_info.make_signature())
-
-        if os.path.exists(file_path) and len(os.listdir(file_path)) >= len(
-            book_catalog
-        ):
-            # File size in `file_path` is greater than or equal to catalog size.
-            # all catalog already been crawled.
-            return
-
         yield from response.follow_all(
             book_catalog,
             self.parse_chapter_data,
-            meta=fmt_meta(book_info.make_signature()),
+            meta=format_meta(book_info.make_signature()),
         )
 
     def get_book_info(self, response):
@@ -65,13 +54,3 @@ class BookSpider(RedisSpider):
         raise NotImplementedError(
             f"{self.__class__.__name__}.parse_chapter_data is not implemented."
         )
-
-    def get_file_store(self, rt, c=None):
-        fragments = [self.settings["IMAGES_STORE"]]
-
-        fragments.append(rt)
-
-        if c:
-            fragments.append(c)
-
-        return "/".join(fragments)

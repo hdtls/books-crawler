@@ -1,4 +1,5 @@
 import base64
+from books_scrapy.loaders import MangaChapterLoader, MangaLoader
 
 from books_scrapy.items import *
 from books_scrapy.items import QTcmsObject
@@ -8,50 +9,21 @@ from books_scrapy.spiders import BookSpider
 
 class The517MangaSpider(BookSpider):
     name = "www.517manhua.com"
-    img_base_url = None
+
     qTcms_m_indexurl = "http://images.yiguahai.com"
-    start_urls = [
-        "http://www.517manhua.com/hougong/nvzixueyuandenansheng/",
-    ]
 
     def get_book_info(self, response):
-        main = response.xpath("//div[contains(@class, 'mh-date-info')]")
+        loader = MangaLoader(response=response)
+        loader.add_xpath("cover_image", "//div[contains(@class, 'mh-date-bgpic')]//img/@src")
+        loader.add_value("ref_urls", [response.url])
 
-        name = main.xpath(
-            "./div[contains(@class, 'mh-date-info-name')]//a/text()"
-        ).get()
+        nested_loader = loader.nested_xpath("//div[contains(@class, 'mh-date-info')]")
+        nested_loader.add_xpath("name", "./div[contains(@class, 'mh-date-info-name')]//a/text()")
+        nested_loader.add_xpath("excerpt", "./div[contains(@class, 'work-introd')]//p/text()")
+        nested_loader.add_xpath("authors", "./p[contains(@class, 'works-info-tc')]//em/a/text()")
+        nested_loader.add_xpath("schedule", "./p[contains(@class, 'works-info-tc')][position()=2]/span[last()]/em/text()")
 
-        cover_img_url = response.xpath(
-            "//div[contains(@class, 'mh-date-bgpic')]//img/@src"
-        ).get()
-
-        excerpt = main.xpath("./div[contains(@class, 'work-introd')]//p/text()").get()
-
-        fmt_author_string: str = fmt_label(
-            main.xpath("./p[contains(@class, 'works-info-tc')]//em/a/text()").get()
-        )
-
-        schedule = (
-            1
-            if "完结"
-            in fmt_label(
-                main.xpath(
-                    "./p[contains(@class, 'works-info-tc')][position()=2]/span[last()]/em/text()"
-                ).get()
-            )
-            else 0
-        )
-
-        manga = Manga(
-            cover_image=dict(url=cover_img_url, ref_urls=[cover_img_url]),
-            excerpt=excerpt,
-            name=name,
-            ref_urls=[response.url],
-            schedule=schedule,
-            authors=[Author(name=name) for name in fmt_author_string.split("/")],
-        )
-
-        return manga
+        return loader.load_item()
 
     def get_book_catalog(self, response):
         return response.xpath("//ul[@id='mh-chapter-list-ol-0']/li/a")
@@ -116,24 +88,13 @@ class The517MangaSpider(BookSpider):
             qTcms_S_ifpubu=eval_js_variable("qTcms_S_ifpubu", script_tag),
         )
 
-        image_urls = []
+        loader = MangaChapterLoader()
+        loader.add_value("name", qTcms_obj.qTcms_S_m_playm)
+        loader.add_value("books_query_id", revert_formatted_meta(response.meta))
+        loader.add_value("ref_urls", [response.url])
+        loader.add_value("image_urls", list(map(lambda url: self.parse_img_url(url, qTcms_obj), orig_url_list)))
 
-        for index, orig_url in enumerate(orig_url_list):
-            img = dict(
-                name=str(index).zfill(3) + ".jpg",
-                url=self.parse_img_url(orig_url, qTcms_obj),
-            )
-            image_urls.append(img)
-
-        chapter = MangaChapter(
-            name=qTcms_obj.qTcms_S_m_playm,
-            books_query_id=revert_fmt_meta(response.meta),
-            ref_urls=[response.url],
-            # image_urls=image_urls,
-        )
-        chapter.image_urls = image_urls
-
-        yield chapter
+        yield loader.load_item()
 
     def parse_img_url(self, orig_url, qTcms_obj):
         if orig_url.startswith("/"):
