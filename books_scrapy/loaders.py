@@ -13,7 +13,7 @@ def make_img(value):
         return None
 
 
-def split_with_space_or_comma(value):
+def splitting(value):
     if not value:
         return []
     separator = None
@@ -21,7 +21,9 @@ def split_with_space_or_comma(value):
         separator = ","
     elif " " in value:
         separator = " "
-    return value.split(separator)
+    elif "x" in value:
+        separator = "x"
+    return list(map(lambda e: e.strip(), value.split(separator)))
 
 
 class MangaLoader(ItemLoader):
@@ -31,15 +33,15 @@ class MangaLoader(ItemLoader):
 
     cover_image_in = Compose(make_img)
     schedule_in = MapCompose(lambda s: 1 if "完结" in s[0] else 0)
-    authors_in = MapCompose(split_with_space_or_comma, lambda name: Author(name=name))
+    authors_in = MapCompose(splitting, lambda name: Author(name=name))
     authors_out = Identity()
     ref_urls_out = Identity()
     area_in = MapCompose(lambda name: MangaArea(name=name))
-    aliases_in = MapCompose(split_with_space_or_comma)
+    aliases_in = MapCompose(splitting)
     background_image_in = Compose(make_img)
     promo_image_in = Compose(make_img)
     categories_in = MapCompose(
-        split_with_space_or_comma, lambda name: MangaCategory(name=name)
+        splitting, lambda name: MangaCategory(name=name)
     )
     categories_out = Identity()
 
