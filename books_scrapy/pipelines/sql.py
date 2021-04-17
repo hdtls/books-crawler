@@ -10,9 +10,6 @@ from sqlalchemy import create_engine
 
 class MySQLPipeline:
     def __init__(self, crawler):
-        """
-        Initialize database connection and sessionmaker
-        """
         self.settings = crawler.settings
         self.logger = logging.getLogger(__name__)
 
@@ -40,6 +37,9 @@ class MySQLPipeline:
             exsit_item = (
                 session.query(Manga).filter(Manga.signature == item.signature).first()
             )
+
+            if exsit_item and exsit_item.copyrighted:
+                raise DropItem()
 
             # Link manga and area.
             # This operation is only triggered when `item.area` is not None and `exsit_item`
