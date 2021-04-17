@@ -27,19 +27,6 @@ def revert_formatted_meta(arg):
     return arg["__meta__"]
 
 
-def get_img_store(settings, rt, mid, last=None):
-    assert rt and mid
-
-    fragments = [settings["IMAGES_STORE"], rt]
-    if mid is not None:
-        fragments.append(mid)
-
-    if last is not None:
-        fragments.append(last)
-
-    return "/".join(fragments)
-
-
 def eval_js_variable(label, text):
     match = re.findall(r"var %s ?= ?(.*?);" % (label), text)
     if not match:
@@ -54,8 +41,6 @@ def list_extend(lhs, rhs):
 
 
 _T = TypeVar("_T")
-
-
 class IterDiff:
     def __init__(self, orig: Iterable[_T], new: Iterable[_T]):
         self.orig = orig
