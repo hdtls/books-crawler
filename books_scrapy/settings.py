@@ -70,7 +70,7 @@ DOWNLOADER_MIDDLEWARES = {
 # }
 MYSQL_HOST = "localhost"
 MYSQL_PORT = "3306"
-MYSQL_URL = "mysql+pymysql://user:mysql@localhost:3306/scrapy?charset=utf8mb4"
+MYSQL_URL = "mysql+pymysql://swift:mysql@localhost:3306/scrapy?charset=utf8mb4"
 
 IMAGES_STORE = str(Path.home()) + "/Downloads"
 
@@ -110,13 +110,13 @@ SCHEDULER_QUEUE_CLASS = "scrapy_redis.queue.PriorityQueue"
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
-    # "books_scrapy.pipelines.dupefilter.DupeFilterPipeline": 300,
     "books_scrapy.pipelines.images.ImagesPipeline": 400,
     "books_scrapy.pipelines.sql.MySQLPipeline": 500,
+    "scrapy_redis.pipelines.RedisPipeline": 300,
 }
 
 # The item pipeline serializes and stores the items in this redis key.
-# REDIS_ITEMS_KEY = '%(spider)s:items'
+REDIS_ITEMS_KEY = '%(spider)s:items'
 
 # The items serializer is by default ScrapyJSONEncoder. You can use any
 # importable path to a callable object.
