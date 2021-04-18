@@ -1,19 +1,34 @@
+import hashlib
+
+from scrapy.utils.misc import arg_to_iter
+
 from books_scrapy.items import Author, Manga, MangaArea, MangaCategory, MangaChapter
 from itemloaders.processors import Compose, Identity, MapCompose, TakeFirst
 from scrapy.loader import ItemLoader
+from scrapy.utils.python import to_bytes
 
-
-def make_img(value):
-    if isinstance(value, list):
+def _image_urls(args, context):
+    item = context["item"]
+    
+    if isinstance(item, Manga):
         return [
-            dict(name=str(i).zfill(4) + ".jpg", url=url, ref_urls=[url])
-            for i, url in enumerate(value)
+            dict(
+                url=f"/{item.make_signature()}/{hashlib.sha1(to_bytes(orig)).hexdigest()}.jpg",
+                ref_urls=[orig],
+            )
+            for orig in arg_to_iter(args)
         ]
-    else:
-        return None
+    elif isinstance(item, MangaChapter):
+        return [
+            dict(
+                url=f"/{item.books_query_id}/{item.make_signature()}/{str(i).zfill(4)}.jpg",
+                ref_urls=[orig],
+            )
+            for i, orig in enumerate(arg_to_iter(args))
+        ]
 
 
-def splitting(value):
+def _splitting(value):
     if not value:
         return []
     separator = None
@@ -31,18 +46,16 @@ class MangaLoader(ItemLoader):
     default_output_processor = TakeFirst()
     default_item_class = Manga
 
-    cover_image_in = Compose(make_img)
+    cover_image_in = Compose(_image_urls)
     schedule_in = MapCompose(lambda s: 1 if "完结" in s[0] else 0)
-    authors_in = MapCompose(splitting, lambda name: Author(name=name))
+    authors_in = MapCompose(_splitting, lambda name: Author(name=name))
     authors_out = Identity()
     ref_urls_out = Identity()
     area_in = MapCompose(lambda name: MangaArea(name=name))
-    aliases_in = MapCompose(splitting)
-    background_image_in = Compose(make_img)
-    promo_image_in = Compose(make_img)
-    categories_in = MapCompose(
-        splitting, lambda name: MangaCategory(name=name)
-    )
+    aliases_in = MapCompose(_splitting)
+    background_image_in = Compose(_image_urls)
+    promo_image_in = Compose(_image_urls)
+    categories_in = MapCompose(_splitting, lambda name: MangaCategory(name=name))
     categories_out = Identity()
 
 
@@ -51,5 +64,5 @@ class MangaChapterLoader(ItemLoader):
     default_item_class = MangaChapter
 
     ref_urls_out = Identity()
-    image_urls_in = Compose(make_img)
+    image_urls_in = Compose(_image_urls)
     image_urls_out = Identity()
