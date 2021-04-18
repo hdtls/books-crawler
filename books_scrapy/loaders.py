@@ -1,5 +1,3 @@
-import hashlib
-
 from scrapy.utils.misc import arg_to_iter
 
 from books_scrapy.items import Author, Manga, MangaArea, MangaCategory, MangaChapter
@@ -7,26 +5,8 @@ from itemloaders.processors import Compose, Identity, MapCompose, TakeFirst
 from scrapy.loader import ItemLoader
 from scrapy.utils.python import to_bytes
 
-def _image_urls(args, context):
-    item = context["item"]
-    
-    if isinstance(item, Manga):
-        return [
-            dict(
-                url=f"/{item.make_signature()}/{hashlib.sha1(to_bytes(orig)).hexdigest()}.jpg",
-                ref_urls=[orig],
-            )
-            for orig in arg_to_iter(args)
-        ]
-    elif isinstance(item, MangaChapter):
-        return [
-            dict(
-                url=f"/{item.books_query_id}/{item.make_signature()}/{str(i).zfill(4)}.jpg",
-                ref_urls=[orig],
-            )
-            for i, orig in enumerate(arg_to_iter(args))
-        ]
-
+def _image_urls(args, loader_context):
+    return map(lambda url: dict(url=url), arg_to_iter(args))
 
 def _splitting(value):
     if not value:
@@ -64,5 +44,4 @@ class MangaChapterLoader(ItemLoader):
     default_item_class = MangaChapter
 
     ref_urls_out = Identity()
-    image_urls_in = Compose(_image_urls)
     image_urls_out = Identity()
