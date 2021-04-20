@@ -9,11 +9,20 @@ class The36MHSpider(BookSpider):
 
     def get_book_info(self, response):
         loader = MangaLoader(response=response)
+        loader.context["refer"] = self.name
 
         loader.add_xpath("name", "//div[contains(@class, 'book-title')]//span/text()")
         loader.add_xpath("excerpt", "//div[@id='intro-all']//p/text()")
-        loader.add_xpath(
-            "cover_image", "//div[contains(@class, 'book-cover')]/p/img/@src"
+        loader.add_value(
+            "cover_image",
+            list(
+                map(
+                    self._parse_img_url,
+                    response.xpath(
+                        "//div[contains(@class, 'book-cover')]/p/img/@src"
+                    ).getall(),
+                )
+            ),
         )
         loader.add_value("ref_urls", [response.url])
 
@@ -30,6 +39,22 @@ class The36MHSpider(BookSpider):
                 loader.add_value("schedule", text)
 
         return loader.load_item()
+
+    def _parse_img_url(self, url):
+        if not "//" in url:
+            # Invalid image url.
+            return None
+
+        host = url.split("//")[1].split("/")[0]
+        if host in [
+            "img001.1fi4b.cn",
+            "img001.shmkks.com",
+            "img001.pkqiyi.com",
+            "img001.sdldcy.com",
+            "img001.microland-design.com",
+        ]:
+            return url.replace(host, "img001.36man.cc")
+        return url
 
     def get_book_catalog(self, response):
         return response.xpath("//ul[@id='chapter-list-4']/li/a")
