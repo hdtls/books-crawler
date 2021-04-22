@@ -137,15 +137,18 @@ class ImagesPipeline(images.ImagesPipeline):
 
     def item_completed(self, results, item, info):
         with suppress(KeyError):
-            print(results, info)
-            ItemAdapter(item)[self.images_urls_field] = [
-                dict(
-                    url=meta["path"],
-                    ref_urls=[meta["url"]],
-                )
-                for success, meta in results
-                if success
-            ]
+            image_urls = [
+                    dict(
+                        url=meta["path"],
+                        ref_urls=[meta["url"]],
+                    )
+                    for success, meta in results
+                    if success
+                ]
+            if isinstance(item, Manga):
+                item.cover_image = image_urls[0] if image_urls else None
+            else:
+                ItemAdapter(item)[self.images_urls_field] = image_urls
         return item
 
     def file_path(self, request, response=None, info=None, *, item=None):
