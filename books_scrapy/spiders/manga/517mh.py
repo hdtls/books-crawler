@@ -14,14 +14,25 @@ class The517MangaSpider(BookSpider):
 
     def get_book_info(self, response):
         loader = MangaLoader(response=response)
-        loader.add_xpath("cover_image", "//div[contains(@class, 'mh-date-bgpic')]//img/@src")
+        loader.add_xpath(
+            "cover_image", "//div[contains(@class, 'mh-date-bgpic')]//img/@src"
+        )
         loader.add_value("ref_urls", [response.url])
 
         nested_loader = loader.nested_xpath("//div[contains(@class, 'mh-date-info')]")
-        nested_loader.add_xpath("name", "./div[contains(@class, 'mh-date-info-name')]//a/text()")
-        nested_loader.add_xpath("excerpt", "./div[contains(@class, 'work-introd')]//p/text()")
-        nested_loader.add_xpath("authors", "./p[contains(@class, 'works-info-tc')]//em/a/text()")
-        nested_loader.add_xpath("schedule", "./p[contains(@class, 'works-info-tc')][position()=2]/span[last()]/em/text()")
+        nested_loader.add_xpath(
+            "name", "./div[contains(@class, 'mh-date-info-name')]//a/text()"
+        )
+        nested_loader.add_xpath(
+            "excerpt", "./div[contains(@class, 'work-introd')]//p/text()"
+        )
+        nested_loader.add_xpath(
+            "authors", "./p[contains(@class, 'works-info-tc')]//em/a/text()"
+        )
+        nested_loader.add_xpath(
+            "schedule",
+            "./p[contains(@class, 'works-info-tc')][position()=2]/span[last()]/em/text()",
+        )
 
         return loader.load_item()
 
@@ -92,7 +103,10 @@ class The517MangaSpider(BookSpider):
         loader.add_value("name", qTcms_obj.qTcms_S_m_playm)
         loader.add_value("books_query_id", revert_formatted_meta(response.meta))
         loader.add_value("ref_urls", [response.url])
-        loader.add_value("image_urls", list(map(lambda url: self.parse_img_url(url, qTcms_obj), orig_url_list)))
+        loader.add_value(
+            "image_urls",
+            list(map(lambda url: self.parse_img_url(url, qTcms_obj), orig_url_list)),
+        )
 
         yield loader.load_item()
 
