@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 class OHManhuaSpider(BookSpider):
     name = "www.cocomanhua.com"
 
-    def get_book_info(self, response):
+    def get_detail(self, response):
         loader = MangaLoader(response=response)
         loader.add_xpath("name", "//dd[contains(@class, 'fed-deta-content')]/h1/text()")
         loader.add_xpath(
@@ -45,10 +45,10 @@ class OHManhuaSpider(BookSpider):
 
         return loader.load_item()
 
-    def get_book_catalog(self, response):
+    def get_catalog(self, response):
         return response.xpath("//div[contains(@class, 'all_data_list')]//li/a")
 
-    def parse_chapter_data(self, response):
+    def parse_chapter_data(self, response, user_info):
         match = re.findall(r"var C_DATA= ?(.*?);", response.text)
 
         if len(match) <= 0:
@@ -77,7 +77,7 @@ class OHManhuaSpider(BookSpider):
 
         loader = MangaChapterLoader()
         loader.add_value("name", loaded_chapter["pagename"])
-        loader.add_value("books_query_id", revert_formatted_meta(response.meta))
+        loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
         loader.add_value(
             "image_urls",

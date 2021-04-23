@@ -12,7 +12,7 @@ class The517MangaSpider(BookSpider):
 
     qTcms_m_indexurl = "http://images.yiguahai.com"
 
-    def get_book_info(self, response):
+    def get_detail(self, response):
         loader = MangaLoader(response=response)
         loader.add_xpath(
             "cover_image", "//div[contains(@class, 'mh-date-bgpic')]//img/@src"
@@ -36,10 +36,10 @@ class The517MangaSpider(BookSpider):
 
         return loader.load_item()
 
-    def get_book_catalog(self, response):
+    def get_catalog(self, response):
         return response.xpath("//ul[@id='mh-chapter-list-ol-0']/li/a")
 
-    def parse_chapter_data(self, response):
+    def parse_chapter_data(self, response, user_info):
         script_tag = response.xpath(
             "//script[contains(text(), 'var qTcms_S_m_murl_e=')]"
         ).get()
@@ -101,16 +101,16 @@ class The517MangaSpider(BookSpider):
 
         loader = MangaChapterLoader()
         loader.add_value("name", qTcms_obj.qTcms_S_m_playm)
-        loader.add_value("books_query_id", revert_formatted_meta(response.meta))
+        loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
         loader.add_value(
             "image_urls",
-            list(map(lambda url: self.parse_img_url(url, qTcms_obj), orig_url_list)),
+            list(map(lambda url: self._replace_img_url_hostname(url, qTcms_obj), orig_url_list)),
         )
 
         yield loader.load_item()
 
-    def parse_img_url(self, orig_url, qTcms_obj):
+    def _replace_img_url_hostname(self, orig_url, qTcms_obj):
         if orig_url.startswith("/"):
             # If `orig_url` is image file path, we only need provide image server address.
             img_base_url = self.img_base_url or qTcms_obj.qTcms_m_weburl
