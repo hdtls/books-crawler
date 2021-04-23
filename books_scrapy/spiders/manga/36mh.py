@@ -4,15 +4,14 @@ import re
 from books_scrapy.loaders import MangaChapterLoader, MangaLoader
 from books_scrapy.items import *
 from books_scrapy.utils import *
-from books_scrapy.spiders import BookSpider
+from scrapy_redis.spiders import RedisSpider
 
 
-class The36MHSpider(BookSpider):
+class The36MHSpider(RedisSpider):
     name = "www.36mh.net"
 
-    def get_book_info(self, response):
+    def get_detail(self, response):
         loader = MangaLoader(response=response)
-        loader.context["refer"] = self.name
 
         loader.add_xpath("name", "//div[contains(@class, 'book-title')]//span/text()")
         loader.add_xpath("excerpt", "//div[@id='intro-all']//p/text()")
@@ -43,10 +42,10 @@ class The36MHSpider(BookSpider):
 
         return loader.load_item()
 
-    def get_book_catalog(self, response):
+    def get_catalog(self, response):
         return response.xpath("//ul[@id='chapter-list-4']/li/a")
 
-    def parse_chapter_data(self, response):
+    def parse_chapter_data(self, response, user_info):
         image_urls = eval_js_variable("chapterImages", response.text)
 
         path = eval_js_variable("chapterPath", response.text)
@@ -59,22 +58,29 @@ class The36MHSpider(BookSpider):
         loader = MangaChapterLoader(response=response)
 
         loader.add_xpath("name", "//div[contains(@class, 'w996 title pr')]/h2/text()")
-        loader.add_value("books_query_id", revert_formatted_meta(response.meta))
+        loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
+
+        item = loader.load_item()
+        item.image_urls = image_urls
 
         yield response.follow(
             "/js/config.js",
             self._resolve_img_url_hostname,
-            meta={"item": loader.load_item(), "image_urls": image_urls},
+            meta=format_meta(item),
+            dont_filter=True,
         )
 
     def _resolve_img_url_hostname(self, response):
-        """Resolve image url hostname from /js/config.js"""
+        """
+        Resolve image url hostname
+        see /js/config.js for more detail.
+        """
 
         # Add prefix ' ' to ignore '//resHost'
         matches = re.findall(r" resHost: ?(.*),", response.text)
         if not matches:
-            return None
+            return
 
         match = json.loads(matches[0])
         if not match:
@@ -86,14 +92,16 @@ class The36MHSpider(BookSpider):
 
         domain = domain[0]
 
-        item = response.meta["item"]
-        image_urls = response.meta["image_urls"]
-
-        item.image_urls = list(map(lambda url: domain + url, image_urls))
+        item = revert_formatted_meta(response.meta)
+        item.image_urls = list(map(lambda url: domain + url, item.image_urls))
 
         yield item
 
     def _replace_img_url_hostname(self, url):
+        """
+        Replace image url hostname with specified value
+        see: /js/common.js for more detail.
+        """
         if not "//" in url:
             # Invalid image url.
             return None

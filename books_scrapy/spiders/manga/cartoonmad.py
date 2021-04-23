@@ -8,7 +8,7 @@ from books_scrapy.utils import *
 class CartoonMadSpider(BookSpider):
     name = "www.cartoonmad.com"
 
-    def get_book_info(self, response):
+    def get_detail(self, response):
         loader = MangaLoader(response=response)
 
         loader.add_value("name", response.xpath("//title/text()").get().split(" - ")[0])
@@ -30,10 +30,10 @@ class CartoonMadSpider(BookSpider):
 
         return loader.load_item()
 
-    def get_book_catalog(self, response):
+    def get_catalog(self, response):
         return response.xpath("//fieldset//tr/td//a")
 
-    def parse_chapter_data(self, response):
+    def parse_chapter_data(self, response, user_info):
         # For now we only support asp hosted chapter.
         # urls = html.css("img::attr(src)").getall()
         img_url = response.xpath(
@@ -56,7 +56,7 @@ class CartoonMadSpider(BookSpider):
         loader = MangaChapterLoader(response=response)
 
         loader.add_value("name", response.xpath("//title/text()").get().split(" - ")[1])
-        loader.add_value("books_query_id", revert_formatted_meta(response.meta))
+        loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
         loader.add_value(
             "image_urls",
