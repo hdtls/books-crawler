@@ -4,7 +4,6 @@ import re
 
 from books_scrapy.items import *
 from books_scrapy.loaders import MangaChapterLoader, MangaLoader
-from books_scrapy.utils.misc import fmt_label
 from books_scrapy.spiders import BookSpider
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -107,7 +106,7 @@ class OHManhuaSpider(BookSpider):
 
         if dict_value["enc_code1"]:
             dict_value["page_size"] = int(
-                fmt_label(OHManhuaSpider._decrypt(dict_value["enc_code1"]))
+                OHManhuaSpider._decrypt(dict_value["enc_code1"])
             )
 
         if dict_value["enc_code2"]:

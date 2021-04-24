@@ -23,8 +23,6 @@ from scrapy.utils.python import to_bytes
 from scrapy.utils.request import referer_str
 from twisted.internet import defer
 
-logger = logging.getLogger(__name__)
-
 
 class FSImageStore(FSFilesStore):
     def stat_file(self, path, info):
@@ -57,6 +55,11 @@ class ImagesPipeline(images.ImagesPipeline):
         "gs": GCSFilesStore,
         "ftp": FTPFilesStore,
     }
+
+    def __init__(self, store_uri, download_func, settings):
+        super().__init__(store_uri, download_func=download_func, settings=settings)
+
+        self.logger = logging.getLogger(__name__)
 
     def get_media_requests(self, item, info):
         urls = ItemAdapter(item).get(self.images_urls_field, [])
@@ -138,13 +141,13 @@ class ImagesPipeline(images.ImagesPipeline):
     def item_completed(self, results, item, info):
         with suppress(KeyError):
             image_urls = [
-                    dict(
-                        url=meta["path"],
-                        ref_urls=[meta["url"]],
-                    )
-                    for success, meta in results
-                    if success
-                ]
+                dict(
+                    url=meta["path"],
+                    ref_urls=[meta["url"]],
+                )
+                for success, meta in results
+                if success
+            ]
             if isinstance(item, Manga):
                 item.cover_image = image_urls[0] if image_urls else None
             else:
