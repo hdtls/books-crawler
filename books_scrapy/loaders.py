@@ -3,9 +3,8 @@ from scrapy.utils.misc import arg_to_iter
 from books_scrapy.items import Author, Manga, MangaArea, MangaCategory, MangaChapter
 from itemloaders.processors import Compose, Identity, MapCompose, TakeFirst
 from scrapy.loader import ItemLoader
-from scrapy.utils.python import to_bytes
 
-def _image_urls(args, loader_context):
+def _image_urls(args):
     return map(lambda url: dict(url=url), arg_to_iter(args))
 
 def _splitting(value):
@@ -44,4 +43,5 @@ class MangaChapterLoader(ItemLoader):
     default_item_class = MangaChapter
 
     ref_urls_out = Identity()
+    cover_image_in = Compose(_image_urls)
     image_urls_out = Identity()

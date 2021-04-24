@@ -20,11 +20,11 @@ def fmt_url_path(path):
 
 
 def format_meta(arg):
-    return {"__meta__": arg}
+    return {"__user_info__": arg}
 
 
 def revert_formatted_meta(arg):
-    return arg["__meta__"]
+    return arg["__user_info__"]
 
 
 def eval_js_variable(label, text):
@@ -41,6 +41,8 @@ def list_extend(lhs, rhs):
 
 
 _T = TypeVar("_T")
+
+
 class IterDiff:
     def __init__(self, orig: Iterable[_T], new: Iterable[_T]):
         self.orig = orig
