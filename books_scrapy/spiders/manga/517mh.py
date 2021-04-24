@@ -3,7 +3,7 @@ import base64
 from books_scrapy.items import *
 from books_scrapy.loaders import MangaChapterLoader, MangaLoader
 from books_scrapy.spiders import BookSpider
-from books_scrapy.utils.misc import eval_js_variable, fmt_url_domain, fmt_url_path
+from books_scrapy.utils.misc import eval_js_variable
 
 
 class The517MangaSpider(BookSpider):
@@ -87,13 +87,9 @@ class The517MangaSpider(BookSpider):
             qTcms_m_moban=eval_js_variable("qTcms_m_moban", script_tag),
             qTcms_m_indexurl=eval_js_variable("qTcms_m_indexurl", script_tag),
             qTcms_m_webname=eval_js_variable("qTcms_m_webname", script_tag),
-            qTcms_m_weburl=fmt_url_domain(
-                eval_js_variable("qTcms_m_weburl", script_tag)
-            ),
-            qTcms_m_playurl=fmt_url_path(
-                eval_js_variable("qTcms_m_playurl", script_tag)
-            ),
-            qTcms_m_url=fmt_url_path(eval_js_variable("qTcms_m_url", script_tag)),
+            qTcms_m_weburl=eval_js_variable("qTcms_m_weburl", script_tag),
+            qTcms_m_playurl=eval_js_variable("qTcms_m_playurl", script_tag),
+            qTcms_m_url=eval_js_variable("qTcms_m_url", script_tag),
             qTcms_S_show_1=eval_js_variable("qTcms_S_show_1", script_tag),
             qTcms_S_ifpubu=eval_js_variable("qTcms_S_ifpubu", script_tag),
         )
@@ -118,6 +114,9 @@ class The517MangaSpider(BookSpider):
         if orig_url.startswith("/"):
             # If `orig_url` is image file path, we only need provide image server address.
             img_base_url = self.img_base_url or qTcms_obj.qTcms_m_weburl
+            img_base_url = (
+                img_base_url[:-1] if img_base_url.endswith("/") else img_base_url
+            )
             return img_base_url + orig_url
         elif qTcms_obj.qTcms_Pic_m_if != "2":
             orig_url = (

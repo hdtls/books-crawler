@@ -3,8 +3,9 @@
 # Please refer to the documentation for information on how to create and manage
 # your spiders.
 
-from books_scrapy.utils.meta import format_meta, revert_formatted_meta
+from books_scrapy.utils.misc import formatted_meta, revert_formatted_meta
 from scrapy_redis.spiders import RedisSpider
+
 
 class BookSpider(RedisSpider):
     """Base class for book spiders."""
@@ -17,7 +18,7 @@ class BookSpider(RedisSpider):
 
         book_info = self.get_detail(response)
         book_info.signature = book_info.make_signature()
-        
+
         catalog = self.get_catalog()
         if not catalog:
             return
@@ -27,7 +28,7 @@ class BookSpider(RedisSpider):
         yield from response.follow_all(
             catalog,
             self._parse_chapter_data,
-            meta=format_meta(book_info.signature),
+            meta=formatted_meta(book_info.signature),
         )
 
     def get_detail(self, response):

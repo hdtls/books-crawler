@@ -4,8 +4,10 @@ from books_scrapy.items import Author, Manga, MangaArea, MangaCategory, MangaCha
 from itemloaders.processors import Compose, Identity, MapCompose, TakeFirst
 from scrapy.loader import ItemLoader
 
+
 def _image_urls(args):
     return map(lambda url: dict(url=url), arg_to_iter(args))
+
 
 def _splitting(value):
     if not value:

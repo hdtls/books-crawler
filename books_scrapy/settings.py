@@ -117,7 +117,7 @@ ITEM_PIPELINES = {
 }
 
 # The item pipeline serializes and stores the items in this redis key.
-REDIS_ITEMS_KEY = '%(spider)s:items'
+REDIS_ITEMS_KEY = "%(spider)s:items"
 
 # The items serializer is by default ScrapyJSONEncoder. You can use any
 # importable path to a callable object.
