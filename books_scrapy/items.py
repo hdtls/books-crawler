@@ -6,7 +6,8 @@
 import enum
 import hashlib
 
-from books_scrapy.utils import iter_diff, list_extend
+from books_scrapy.utils.diff import iter_diff
+from books_scrapy.utils.misc import list_extend
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List

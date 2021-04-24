@@ -1,10 +1,10 @@
 import base64
-from books_scrapy.loaders import MangaChapterLoader, MangaLoader
 import demjson
 import re
 
 from books_scrapy.items import *
-from books_scrapy.utils import *
+from books_scrapy.loaders import MangaChapterLoader, MangaLoader
+from books_scrapy.utils.misc import fmt_label
 from books_scrapy.spiders import BookSpider
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
