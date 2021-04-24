@@ -1,8 +1,6 @@
-from json import load
-from books_scrapy.loaders import MangaChapterLoader, MangaLoader
 from books_scrapy.items import *
+from books_scrapy.loaders import MangaChapterLoader, MangaLoader
 from books_scrapy.spiders import BookSpider
-from books_scrapy.utils import *
 
 
 class CartoonMadSpider(BookSpider):

@@ -1,10 +1,9 @@
 import base64
-from books_scrapy.loaders import MangaChapterLoader, MangaLoader
 
 from books_scrapy.items import *
-from books_scrapy.items import QTcmsObject
-from books_scrapy.utils import *
+from books_scrapy.loaders import MangaChapterLoader, MangaLoader
 from books_scrapy.spiders import BookSpider
+from books_scrapy.utils.misc import eval_js_variable, fmt_url_domain, fmt_url_path
 
 
 class The517MangaSpider(BookSpider):
@@ -105,7 +104,12 @@ class The517MangaSpider(BookSpider):
         loader.add_value("ref_urls", [response.url])
         loader.add_value(
             "image_urls",
-            list(map(lambda url: self._replace_img_url_hostname(url, qTcms_obj), orig_url_list)),
+            list(
+                map(
+                    lambda url: self._replace_img_url_hostname(url, qTcms_obj),
+                    orig_url_list,
+                )
+            ),
         )
 
         yield loader.load_item()

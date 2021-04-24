@@ -1,9 +1,9 @@
 import json
 import re
 
-from books_scrapy.loaders import MangaChapterLoader, MangaLoader
 from books_scrapy.items import *
-from books_scrapy.utils import *
+from books_scrapy.loaders import MangaChapterLoader, MangaLoader
+from books_scrapy.utils.misc import eval_js_variable, format_meta, revert_formatted_meta
 from scrapy_redis.spiders import RedisSpider
 
 

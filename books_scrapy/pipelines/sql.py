@@ -1,7 +1,7 @@
+from books_scrapy.utils.diff import iter_diff
 import logging
 
 from books_scrapy.items import Author, Manga, MangaArea, MangaCategory, MangaChapter
-from books_scrapy.utils import iter_diff
 from scrapy.exceptions import DropItem
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
