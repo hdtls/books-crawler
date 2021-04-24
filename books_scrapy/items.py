@@ -122,6 +122,7 @@ class MangaChapter:
         mapper_registry.metadata,
         Column("id", BigInteger, autoincrement=True, primary_key=True),
         Column("signature", String(32), nullable=False, unique=True),
+        Column("cover_image", JSON(none_as_null=True)),
         Column("name", String, nullable=False),
         Column("image_urls", JSON(none_as_null=True), nullable=False),
         Column("ref_urls", JSON(none_as_null=True)),
@@ -139,6 +140,7 @@ class MangaChapter:
     signature: str
     books_query_id: str = field(default_factory=str)
     image_urls: List[dict] = field(default_factory=list)
+    cover_image: Optional[dict] = None
     ref_urls: Optional[List[str]] = None
 
     @property
@@ -157,23 +159,6 @@ class MangaChapter:
 
         if self.page_size < other.page_size:
             self.image_urls = other.image_urls
-
-
-author_published_manga = Table(
-    "users_manga_linkers",
-    mapper_registry.metadata,
-    Column("id", BigInteger, autoincrement=True, nullable=False, primary_key=True),
-    Column("from", BigInteger, ForeignKey("users.id")),
-    Column("to", BigInteger, ForeignKey("manga.id")),
-)
-
-categorized_manga = Table(
-    "manga_categories_manga_linkers",
-    mapper_registry.metadata,
-    Column("id", BigInteger, autoincrement=True, nullable=False, primary_key=True),
-    Column("from", BigInteger, ForeignKey("manga_categories.id")),
-    Column("to", BigInteger, ForeignKey("manga.id")),
-)
 
 
 @dataclass
@@ -207,10 +192,38 @@ class Manga:
         "properties": {
             "chapters": relationship("MangaChapter", backref="manga"),
             "authors": relationship(
-                "Author", secondary=author_published_manga, backref="manga"
+                "Author",
+                secondary=Table(
+                    "users_manga_linkers",
+                    mapper_registry.metadata,
+                    Column(
+                        "id",
+                        BigInteger,
+                        autoincrement=True,
+                        nullable=False,
+                        primary_key=True,
+                    ),
+                    Column("from", BigInteger, ForeignKey("users.id")),
+                    Column("to", BigInteger, ForeignKey("manga.id")),
+                ),
+                backref="manga",
             ),
             "categories": relationship(
-                "MangaCategory", secondary=categorized_manga, backref="manga"
+                "MangaCategory",
+                secondary=Table(
+                    "manga_categories_manga_linkers",
+                    mapper_registry.metadata,
+                    Column(
+                        "id",
+                        BigInteger,
+                        autoincrement=True,
+                        nullable=False,
+                        primary_key=True,
+                    ),
+                    Column("from", BigInteger, ForeignKey("manga_categories.id")),
+                    Column("to", BigInteger, ForeignKey("manga.id")),
+                ),
+                backref="manga",
             ),
         }
     }
