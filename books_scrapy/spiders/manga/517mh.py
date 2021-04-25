@@ -1,7 +1,7 @@
 import base64
 
 from books_scrapy.items import *
-from books_scrapy.loaders import MangaChapterLoader, MangaLoader
+from books_scrapy.loaders import ChapterLoader, MangaLoader
 from books_scrapy.spiders import BookSpider
 from books_scrapy.utils.misc import eval_js_variable
 
@@ -55,7 +55,7 @@ class The517MangaSpider(BookSpider):
         if not orig_url_list:
             return
 
-        qTcms_obj = QTcmsObject(
+        config = QTCMSConfiguration(
             qTcms_Cur=eval_js_variable("qTcms_Cur", script_tag),
             qTcms_S_m_id=eval_js_variable("qTcms_S_m_id", script_tag),
             qTcms_S_p_id=eval_js_variable("qTcms_S_p_id", script_tag),
@@ -94,15 +94,15 @@ class The517MangaSpider(BookSpider):
             qTcms_S_ifpubu=eval_js_variable("qTcms_S_ifpubu", script_tag),
         )
 
-        loader = MangaChapterLoader()
-        loader.add_value("name", qTcms_obj.qTcms_S_m_playm)
+        loader = ChapterLoader()
+        loader.add_value("name", config.qTcms_S_m_playm)
         loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
         loader.add_value(
             "image_urls",
             list(
                 map(
-                    lambda url: self._replace_img_url_hostname(url, qTcms_obj),
+                    lambda url: self._replace_img_url_hostname(url, config),
                     orig_url_list,
                 )
             ),
@@ -110,29 +110,29 @@ class The517MangaSpider(BookSpider):
 
         yield loader.load_item()
 
-    def _replace_img_url_hostname(self, orig_url, qTcms_obj):
+    def _replace_img_url_hostname(self, orig_url, config):
         if orig_url.startswith("/"):
             # If `orig_url` is image file path, we only need provide image server address.
-            img_base_url = self.img_base_url or qTcms_obj.qTcms_m_weburl
+            img_base_url = self.img_base_url or config.qTcms_m_weburl
             img_base_url = (
                 img_base_url[:-1] if img_base_url.endswith("/") else img_base_url
             )
             return img_base_url + orig_url
-        elif qTcms_obj.qTcms_Pic_m_if != "2":
+        elif config.qTcms_Pic_m_if != "2":
             orig_url = (
                 orig_url.replace("?", "a1a1").replace("&", "b1b1").replace("%", "c1c1")
             )
 
             try:
                 qTcms_S_m_mhttpurl = base64.b64decode(
-                    qTcms_obj.qTcms_S_m_mhttpurl
+                    config.qTcms_S_m_mhttpurl
                 ).decode()
                 return (
-                    (self.qTcms_m_indexurl + "/" or qTcms_obj.qTcms_m_indexurl)
+                    (self.qTcms_m_indexurl + "/" or config.qTcms_m_indexurl)
                     + "statics/pic/?p="
                     + orig_url
                     + "&picid="
-                    + qTcms_obj.qTcms_S_m_id
+                    + config.qTcms_S_m_id
                     + "&m_httpurl="
                     + qTcms_S_m_mhttpurl
                 )
