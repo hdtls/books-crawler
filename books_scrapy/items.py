@@ -6,8 +6,10 @@
 import enum
 import hashlib
 
+from books_scrapy.utils.coding import DecodingError, type_mismatch
 from books_scrapy.utils.diff import iter_diff
 from books_scrapy.utils.misc import list_extend
+from books_scrapy.utils.snowflake import snowflake
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List
@@ -39,7 +41,7 @@ class Author:
     __table__ = Table(
         "users",
         mapper_registry.metadata,
-        Column("id", BigInteger, autoincrement=True, nullable=False, primary_key=True),
+        Column("id", BigInteger, default=snowflake(), nullable=False, primary_key=True),
         Column("name", String, nullable=False, unique=True),
         Column("level", Enum(Level), default=Level.zombie, nullable=False),
         Column("created_at", DateTime, default=datetime.utcnow()),
@@ -57,6 +59,12 @@ class Author:
         if not isinstance(o, Author):
             return False
         return self.name == o.name
+        
+    def validate(self):
+        if not self.name:
+            raise DecodingError("Error: value required for key 'name'")
+        if not isinstance(self.name, str):
+            raise type_mismatch(self, "name", str, self.name)
 
 
 @dataclass
@@ -65,7 +73,7 @@ class MangaCategory:
     __table__ = Table(
         "manga_categories",
         mapper_registry.metadata,
-        Column("id", BigInteger, autoincrement=True, nullable=False, primary_key=True),
+        Column("id", BigInteger, default=snowflake(), nullable=False, primary_key=True),
         Column("name", String, nullable=False, unique=True),
         Column("created_at", DateTime, default=datetime.utcnow()),
         Column(
@@ -83,6 +91,12 @@ class MangaCategory:
             return False
         return self.name == o.name
 
+    def validate(self):
+        if not self.name:
+            raise DecodingError("Error: value required for key 'name'")
+        if not isinstance(self.name, str):
+            raise type_mismatch(self, "name", str, self.name)
+
 
 @dataclass
 @mapper_registry.mapped
@@ -90,7 +104,7 @@ class MangaArea:
     __table__ = Table(
         "manga_areas",
         mapper_registry.metadata,
-        Column("id", Integer, autoincrement=True, primary_key=True),
+        Column("id", BigInteger, default=snowflake(), primary_key=True),
         Column("name", String(), nullable=False, unique=True),
         Column("created_at", DateTime, default=datetime.utcnow()),
         Column(
@@ -114,6 +128,12 @@ class MangaArea:
             return False
         return self.name == o.name
 
+    def validate(self):
+        if not self.name:
+            raise DecodingError("Error: value required for key 'name'")
+        if not isinstance(self.name, str):
+            raise type_mismatch(self, "name", str, self.name)
+
 
 @dataclass(repr=False)
 @mapper_registry.mapped
@@ -121,11 +141,11 @@ class MangaChapter:
     __table__ = Table(
         "manga_chapters",
         mapper_registry.metadata,
-        Column("id", BigInteger, autoincrement=True, primary_key=True),
+        Column("id", BigInteger, default=snowflake(), primary_key=True),
         Column("signature", String(32), nullable=False, unique=True),
         Column("cover_image", JSON(none_as_null=True)),
         Column("name", String, nullable=False),
-        Column("image_urls", JSON(none_as_null=True), nullable=False),
+        Column("image_urls", JSON(none_as_null=True), default=[], nullable=False),
         Column("ref_urls", JSON(none_as_null=True)),
         Column("book_id", BigInteger, ForeignKey("manga.id")),
         Column("created_at", DateTime, default=datetime.utcnow()),
@@ -161,6 +181,29 @@ class MangaChapter:
         if self.page_size < other.page_size:
             self.image_urls = other.image_urls
 
+    def validate(self):
+        if not self.name:
+            raise DecodingError("Error: value required for key 'name'")
+        if not self.image_urls:
+            raise DecodingError("Error: value required for key 'image_urls'")
+        
+        if not isinstance(self.name, str):
+            raise type_mismatch(self, "name", str, self.name)
+        if not isinstance(self.image_urls, List):
+            raise type_mismatch(self, "image_urls", "<class 'List[str]'>", self.image_urls)
+        if isinstance(self.image_urls, List):
+            for index, url in enumerate(self.image_urls):
+                if not isinstance(url, dict):
+                    raise type_mismatch(self, f"image_urls[{index}]", dict, url)
+        if not isinstance(self.cover_image, dict) and self.cover_image:
+            raise type_mismatch(self, "cover_image", dict, self.cover_image)
+        if not isinstance(self.ref_urls, List) and self.ref_urls:
+            raise type_mismatch(self, "ref_urls", "<class 'List[str]'>", self.ref_urls)
+        if isinstance(self.ref_urls, List):
+            for index, url in enumerate(self.ref_urls):
+                if not isinstance(url, str):
+                    raise type_mismatch(self, f"ref_urls[{index}]", str, url)
+
 
 @dataclass
 @mapper_registry.mapped
@@ -168,18 +211,18 @@ class Manga:
     __table__ = Table(
         "manga",
         mapper_registry.metadata,
-        Column("id", BigInteger, autoincrement=True, primary_key=True),
+        Column("id", BigInteger, default=snowflake(), primary_key=True),
         Column("signature", String(32), nullable=True, unique=True),
         Column("name", String(255), nullable=False),
         Column("excerpt", Text, nullable=False),
         Column("cover_image", JSON(none_as_null=True), nullable=False),
-        Column("copyrighted", Boolean, default=False, nullable=False),
+        Column("copyrighted", Boolean, default=False),
         Column("schedule", Integer, default=0, nullable=False),
         Column("ref_urls", JSON(none_as_null=True)),
         Column("aliases", JSON(none_as_null=True)),
         Column("background_image", JSON(none_as_null=True)),
         Column("promo_image", JSON(none_as_null=True)),
-        Column("area_id", ForeignKey("manga_areas.id")),
+        Column("area_id", BigInteger, ForeignKey("manga_areas.id")),
         Column("created_at", DateTime, default=datetime.utcnow()),
         Column(
             "updated_at",
@@ -200,7 +243,7 @@ class Manga:
                     Column(
                         "id",
                         BigInteger,
-                        autoincrement=True,
+                        default=snowflake(),
                         nullable=False,
                         primary_key=True,
                     ),
@@ -217,7 +260,7 @@ class Manga:
                     Column(
                         "id",
                         BigInteger,
-                        autoincrement=True,
+                        default=snowflake(),
                         nullable=False,
                         primary_key=True,
                     ),
@@ -238,7 +281,7 @@ class Manga:
     schedule: int = 0
     # Relationship property remove from init.
     authors: List[Author] = field(default_factory=list)
-    copyrighted: bool = field(default=False)
+    # copyrighted: bool = field(default=False)
     ref_urls: Optional[List[str]] = None
     # Use for update `area_id` this is not db column.
     area: Optional[MangaArea] = None
@@ -282,9 +325,43 @@ class Manga:
         for category in iter_diff(self.categories, other.categories).added:
             self.categories.append(category)
 
+    def validate(self):
+        if not self.name:
+            raise DecodingError("Error: value required for key 'name'")
+        if not self.excerpt:
+            raise DecodingError("Error: value required for key 'excerpt'")
+        if not self.cover_image:
+            raise DecodingError("Error: value required for key 'cover_image'")
+        if self.schedule is None:
+            raise DecodingError("Error: value required for key 'schedule'")
+
+        if not isinstance(self.name, str):
+            raise type_mismatch(self, "name", str, self.name)
+        if not isinstance(self.excerpt, str):
+            raise type_mismatch(self, "excerpt", str, self.excerpt)
+        if not isinstance(self.cover_image, dict):
+            raise type_mismatch(self, "cover_image", dict, self.cover_image)
+        if not isinstance(self.schedule, int):
+            raise type_mismatch(self, "schedule", int, self.schedule)
+        if not isinstance(self.ref_urls, List) and self.ref_urls:
+            raise type_mismatch(self, "ref_urls", "<class 'List[str]'>", self.ref_urls)
+        if isinstance(self.ref_urls, List):
+            for index, url in enumerate(self.ref_urls):
+                if not isinstance(url, str):
+                    raise type_mismatch(self, f"ref_urls[{index}", str, url)
+        if not isinstance(self.aliases, List) and self.aliases:
+            raise type_mismatch(self, "aliases", "<class 'List[str]'>", self.aliases)
+        if isinstance(self.aliases, List):
+            for index, alias in enumerate(self.aliases):
+                if not isinstance(alias, str):
+                    raise type_mismatch(self, f"aliases[{index}", str, alias)
+        if not isinstance(self.background_image, dict) and self.background_image:
+            raise type_mismatch(self, "background_image", dict, self.background_image)
+        if not isinstance(self.promo_image, dict) and self.promo_image:
+            raise type_mismatch(self, "promo_image", dict, self.promo_image)        
 
 @dataclass
-class QTcmsObject:
+class QTCMSConfiguration:
     qTcms_Cur: Optional[str]
     qTcms_S_m_id: Optional[str]
     qTcms_S_p_id: Optional[str]
