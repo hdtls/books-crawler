@@ -41,7 +41,7 @@ class Author:
     __table__ = Table(
         "users",
         mapper_registry.metadata,
-        Column("id", BigInteger, default=snowflake(), nullable=False, primary_key=True),
+        Column("id", BigInteger, default=snowflake, nullable=False, primary_key=True),
         Column("name", String, nullable=False, unique=True),
         Column("level", Enum(Level), default=Level.zombie, nullable=False),
         Column("created_at", DateTime, default=datetime.utcnow()),
@@ -73,7 +73,7 @@ class MangaCategory:
     __table__ = Table(
         "manga_categories",
         mapper_registry.metadata,
-        Column("id", BigInteger, default=snowflake(), nullable=False, primary_key=True),
+        Column("id", BigInteger, default=snowflake, nullable=False, primary_key=True),
         Column("name", String, nullable=False, unique=True),
         Column("created_at", DateTime, default=datetime.utcnow()),
         Column(
@@ -104,7 +104,7 @@ class MangaArea:
     __table__ = Table(
         "manga_areas",
         mapper_registry.metadata,
-        Column("id", BigInteger, default=snowflake(), primary_key=True),
+        Column("id", BigInteger, default=snowflake, primary_key=True),
         Column("name", String(), nullable=False, unique=True),
         Column("created_at", DateTime, default=datetime.utcnow()),
         Column(
@@ -135,13 +135,13 @@ class MangaArea:
             raise type_mismatch(self, "name", str, self.name)
 
 
-@dataclass(repr=False)
+@dataclass()
 @mapper_registry.mapped
 class MangaChapter:
     __table__ = Table(
         "manga_chapters",
         mapper_registry.metadata,
-        Column("id", BigInteger, default=snowflake(), primary_key=True),
+        Column("id", BigInteger, default=snowflake, primary_key=True),
         Column("signature", String(32), nullable=False, unique=True),
         Column("cover_image", JSON(none_as_null=True)),
         Column("name", String, nullable=False),
@@ -159,8 +159,8 @@ class MangaChapter:
 
     name: str
     signature: str
+    image_urls: List[dict]
     books_query_id: str = field(default_factory=str)
-    image_urls: List[dict] = field(default_factory=list)
     cover_image: Optional[dict] = None
     ref_urls: Optional[List[str]] = None
 
@@ -211,7 +211,7 @@ class Manga:
     __table__ = Table(
         "manga",
         mapper_registry.metadata,
-        Column("id", BigInteger, default=snowflake(), primary_key=True),
+        Column("id", BigInteger, default=snowflake, primary_key=True),
         Column("signature", String(32), nullable=True, unique=True),
         Column("name", String(255), nullable=False),
         Column("excerpt", Text, nullable=False),
@@ -243,7 +243,7 @@ class Manga:
                     Column(
                         "id",
                         BigInteger,
-                        default=snowflake(),
+                        default=snowflake,
                         nullable=False,
                         primary_key=True,
                     ),
@@ -260,7 +260,7 @@ class Manga:
                     Column(
                         "id",
                         BigInteger,
-                        default=snowflake(),
+                        default=snowflake,
                         nullable=False,
                         primary_key=True,
                     ),
