@@ -3,7 +3,7 @@ import demjson
 import re
 
 from books_scrapy.items import *
-from books_scrapy.loaders import MangaChapterLoader, MangaLoader
+from books_scrapy.loaders import ChapterLoader, MangaLoader
 from books_scrapy.spiders import BookSpider
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -74,7 +74,7 @@ class OHManhuaSpider(BookSpider):
             int(loaded_chapter["startimg"]) if loaded_chapter["startimg"] else 0
         )
 
-        loader = MangaChapterLoader()
+        loader = ChapterLoader()
         loader.add_value("name", loaded_chapter["pagename"])
         loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])

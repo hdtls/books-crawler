@@ -1,5 +1,5 @@
 from books_scrapy.items import *
-from books_scrapy.loaders import MangaChapterLoader, MangaLoader
+from books_scrapy.loaders import ChapterLoader, MangaLoader
 from books_scrapy.spiders import BookSpider
 
 
@@ -51,7 +51,7 @@ class CartoonMadSpider(BookSpider):
 
         page_size = int(page_size)
 
-        loader = MangaChapterLoader(response=response)
+        loader = ChapterLoader(response=response)
 
         loader.add_value("name", response.xpath("//title/text()").get().split(" - ")[1])
         loader.add_value("books_query_id", user_info)

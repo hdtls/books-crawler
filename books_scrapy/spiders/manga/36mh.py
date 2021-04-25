@@ -1,17 +1,17 @@
+from books_scrapy.spiders import BookSpider
 import json
 import re
 
 from books_scrapy.items import *
-from books_scrapy.loaders import MangaChapterLoader, MangaLoader
+from books_scrapy.loaders import ChapterLoader, MangaLoader
 from books_scrapy.utils.misc import (
     eval_js_variable,
     formatted_meta,
     revert_formatted_meta,
 )
-from scrapy_redis.spiders import RedisSpider
 
 
-class The36MHSpider(RedisSpider):
+class The36MHSpider(BookSpider):
     name = "www.36mh.net"
 
     def get_detail(self, response):
@@ -59,14 +59,14 @@ class The36MHSpider(RedisSpider):
 
         image_urls = list(map(lambda url: path + url, image_urls))
 
-        loader = MangaChapterLoader(response=response)
+        loader = ChapterLoader(response=response)
 
         loader.add_xpath("name", "//div[contains(@class, 'w996 title pr')]/h2/text()")
         loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
+        loader.add_value("image_urls", image_urls)
 
         item = loader.load_item()
-        item.image_urls = image_urls
 
         yield response.follow(
             "/js/config.js",
@@ -97,7 +97,7 @@ class The36MHSpider(RedisSpider):
         domain = domain[0]
 
         item = revert_formatted_meta(response.meta)
-        item.image_urls = list(map(lambda url: domain + url, item.image_urls))
+        item.image_urls = list(map(lambda url: dict(url=domain + url["url"]), item.image_urls))
 
         yield item
 

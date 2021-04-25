@@ -40,10 +40,11 @@ class MangaLoader(ItemLoader):
     categories_out = Identity()
 
 
-class MangaChapterLoader(ItemLoader):
+class ChapterLoader(ItemLoader):
     default_output_processor = TakeFirst()
     default_item_class = MangaChapter
 
     ref_urls_out = Identity()
     cover_image_in = Compose(_image_urls)
+    image_urls_in = Compose(_image_urls)
     image_urls_out = Identity()
