@@ -19,7 +19,7 @@ class BookSpider(RedisSpider):
         book_info = self.get_detail(response)
         book_info.signature = book_info.make_signature()
 
-        catalog = self.get_catalog()
+        catalog = self.get_catalog(response)
         if not catalog:
             return
 
@@ -53,7 +53,7 @@ class BookSpider(RedisSpider):
 
     def _parse_chapter_data(self, response):
         signature = revert_formatted_meta(response.meta)
-        self.parse_chapter_data(response, signature)
+        return self.parse_chapter_data(response, signature)
 
     def parse_chapter_data(self, response, user_info):
         """
