@@ -39,7 +39,7 @@ class MySQLPipeline:
             )
 
             if exsit_item and exsit_item.copyrighted:
-                raise DropItem()
+                raise DropItem("Ignore copyrighted item.", item)
 
             # Link manga and area.
             # This operation is only triggered when `item.area` is not None and `exsit_item`
@@ -114,7 +114,7 @@ class MySQLPipeline:
             )
 
             if not exsit_item:
-                raise DropItem()
+                raise DropItem("Missing parent item.", item)
 
             filtered_item = next(
                 filter(lambda el: el.name == item.name, exsit_item.chapters),
