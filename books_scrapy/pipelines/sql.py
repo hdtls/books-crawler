@@ -1,11 +1,12 @@
-from books_scrapy.utils.diff import iter_diff
 import logging
 
 from books_scrapy.items import Author, Manga, MangaArea, MangaCategory, MangaChapter
+from books_scrapy.utils.diff import iter_diff
 from scrapy.exceptions import DropItem
+from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy import create_engine
+from sqlalchemy.orm.attributes import flag_modified
 
 
 class MySQLPipeline:
@@ -99,6 +100,7 @@ class MySQLPipeline:
 
             if exsit_item:
                 exsit_item.merge(item)
+                flag_modified(exsit_item, "cover_image")
                 is_add = False
             else:
                 exsit_item = item
@@ -123,6 +125,9 @@ class MySQLPipeline:
 
             if filtered_item:
                 filtered_item.merge(item)
+                flag_modified(filtered_item, "cover_image")
+                flag_modified(filtered_item, "image_urls")
+                flag_modified(exsit_item, "chapters")
             else:
                 item.book_id = exsit_item.id
                 exsit_item.chapters.append(item)

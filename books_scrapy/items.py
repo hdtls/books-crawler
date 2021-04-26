@@ -59,7 +59,7 @@ class Author:
         if not isinstance(o, Author):
             return False
         return self.name == o.name
-        
+
     def validate(self):
         if not self.name:
             raise DecodingError("Error: value required for key 'name'")
@@ -160,7 +160,7 @@ class MangaChapter:
     name: str
     signature: str
     image_urls: List[dict]
-    books_query_id: str = field(default_factory=str)
+    books_query_id: str = None
     cover_image: Optional[dict] = None
     ref_urls: Optional[List[str]] = None
 
@@ -178,19 +178,23 @@ class MangaChapter:
     def merge(self, other):
         self.ref_urls = list_extend(self.ref_urls, other.ref_urls)
 
-        if self.page_size < other.page_size:
+        if self.page_size <= other.page_size:
             self.image_urls = other.image_urls
+
+        self.cover_image = updated_image(self.cover_image, other.cover_image)
 
     def validate(self):
         if not self.name:
             raise DecodingError("Error: value required for key 'name'")
         if not self.image_urls:
             raise DecodingError("Error: value required for key 'image_urls'")
-        
+
         if not isinstance(self.name, str):
             raise type_mismatch(self, "name", str, self.name)
         if not isinstance(self.image_urls, List):
-            raise type_mismatch(self, "image_urls", "<class 'List[str]'>", self.image_urls)
+            raise type_mismatch(
+                self, "image_urls", "<class 'List[str]'>", self.image_urls
+            )
         if isinstance(self.image_urls, List):
             for index, url in enumerate(self.image_urls):
                 if not isinstance(url, dict):
@@ -316,8 +320,12 @@ class Manga:
         self.aliases = list_extend(self.aliases, other.aliases)
         self.schedule = other.schedule
         self.ref_urls = list_extend(self.ref_urls, other.ref_urls)
-        self.background_image = self.background_image or other.background_image
-        self.promo_image = self.background_image or other.background_image
+
+        self.cover_image = updated_image(self.cover_image, other.cover_image)
+        self.background_image = updated_image(
+            self.background_image, other.background_image
+        )
+        self.promo_image = updated_image(self.promo_image, other.promo_image)
 
         for author in iter_diff(self.authors, other.authors).added:
             self.authors.append(author)
@@ -358,7 +366,22 @@ class Manga:
         if not isinstance(self.background_image, dict) and self.background_image:
             raise type_mismatch(self, "background_image", dict, self.background_image)
         if not isinstance(self.promo_image, dict) and self.promo_image:
-            raise type_mismatch(self, "promo_image", dict, self.promo_image)        
+            raise type_mismatch(self, "promo_image", dict, self.promo_image)
+
+
+def updated_image(__orig, __new):
+    # Only update when __new item have url or __orig is None.
+    if not __orig or (__new and __new.get("url")):
+        image = __orig or {}
+        image["index"] = __new.get("index")
+        image["width"] = __new.get("width")
+        image["height"] = __new.get("height")
+        image["url"] = __new.get("url")
+        image["ref_urls"] = list_extend(
+            __orig.get("ref_urls", []), __new.get("ref_urls", [])
+        )
+        return image
+    return __orig
 
 @dataclass
 class QTCMSConfiguration:

@@ -97,7 +97,13 @@ class The36MHSpider(BookSpider):
         domain = domain[0]
 
         item = revert_formatted_meta(response.meta)
-        item.image_urls = list(map(lambda url: dict(url=domain + url["url"]), item.image_urls))
+        
+        image_urls = []
+        for image in item.image_urls:
+            image["ref_urls"] = list(map(lambda url: domain + url, image["ref_urls"]))
+            image_urls.append(image)
+
+        item.image_urls = image_urls
 
         yield item
 
