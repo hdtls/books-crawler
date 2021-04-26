@@ -1,3 +1,4 @@
+import enum
 import hashlib
 import logging
 import os
@@ -5,11 +6,9 @@ import time
 
 from books_scrapy.items import Manga, MangaChapter
 from contextlib import suppress
-from itemloaders.utils import arg_to_iter
 from itemadapter import ItemAdapter
 from io import BytesIO
 from PIL import Image
-from scrapy.exceptions import DropItem
 from scrapy.http.request import Request
 from scrapy.pipelines import images
 from scrapy.pipelines.files import (
@@ -19,9 +18,10 @@ from scrapy.pipelines.files import (
     S3FilesStore,
 )
 from scrapy.utils.log import failure_to_exc_info
-from scrapy.utils.python import to_bytes
 from scrapy.utils.request import referer_str
 from twisted.internet import defer
+
+logger = logging.getLogger(__name__)
 
 
 class FSImageStore(FSFilesStore):
@@ -48,6 +48,8 @@ class FSImageStore(FSFilesStore):
 class ImagesPipeline(images.ImagesPipeline):
     """Abstract pipeline that implement the image thumbnail generation logic"""
 
+    image_urls = "ref_urls"
+
     STORE_SCHEMES = {
         "": FSFilesStore,
         "file": FSImageStore,
@@ -56,19 +58,25 @@ class ImagesPipeline(images.ImagesPipeline):
         "ftp": FTPFilesStore,
     }
 
-    def __init__(self, store_uri, download_func, settings):
-        super().__init__(store_uri, download_func=download_func, settings=settings)
-
-        self.logger = logging.getLogger(__name__)
-
     def get_media_requests(self, item, info):
-        urls = ItemAdapter(item).get(self.images_urls_field, [])
+        urls = []
 
         if isinstance(item, Manga):
             if item.cover_image:
-                urls = item.cover_image.get("url", [])
+                urls.extend(item.cover_image.get(self.image_urls, []))
+            if item.background_image:
+                urls.extend(item.background_image.get(self.image_urls, []))
+            if item.promo_image:
+                urls.extend(item.promo_image.get(self.image_urls, []))
+        elif isinstance(item, MangaChapter):
+            if item.cover_image:
+                urls.extend(item.cover_image.get(self.image_urls, []))
+            for image in item.image_urls:
+                urls.extend(image.get(self.image_urls, []))
+        else:
+            urls.extend(ItemAdapter(item).get(self.images_urls_field, []))
 
-        yield from [Request(url) for url in arg_to_iter(urls)]
+        yield from [Request(url) for url in urls[:2]]
 
     def media_to_download(self, request, info, *, item=None):
         def _success(result):
@@ -140,27 +148,49 @@ class ImagesPipeline(images.ImagesPipeline):
 
     def item_completed(self, results, item, info):
         with suppress(KeyError):
-            image_urls = [
-                dict(
-                    url=meta["path"],
-                    ref_urls=[meta["url"]],
-                )
-                for success, meta in results
-                if success
-            ]
-            if isinstance(item, Manga):
-                item.cover_image = image_urls[0] if image_urls else None
-            else:
-                ItemAdapter(item)[self.images_urls_field] = image_urls
-        return item
+            for success, meta in results:
+                if not success:
+                    continue
 
-    def file_path(self, request, response=None, info=None, *, item=None):
-        if isinstance(item, Manga):
-            return f"{item.make_signature()}/{hashlib.sha1(to_bytes(request.url)).hexdigest()}.jpg"
-        elif isinstance(item, MangaChapter):
-            filtered = [
-                index for index, url in item.image_urls if url["url"] == request.url
-            ]
-            return f"{item.books_query_id}/{item.make_signature()}/{str(filtered[0]).zfill(4)}.jpg"
-        else:
-            raise DropItem("Not supported item type.")
+                ref_urls = [meta["url"]]
+
+                if isinstance(item, Manga):
+                    if item.cover_image and ref_urls == item.cover_image.get(
+                        self.image_urls
+                    ):
+                        item.cover_image = self._resolve_image(meta)
+                    elif (
+                        item.background_image
+                        and ref_urls == item.background_image.get(self.image_urls, [])
+                    ):
+                        item.background_image = self._resolve_image(meta)
+                    elif item.promo_image and ref_urls == item.promo_image.get(
+                        self.image_urls, []
+                    ):
+                        item.promo_image = self._resolve_image(meta)
+                elif isinstance(item, MangaChapter):
+                    if item.cover_image and ref_urls == item.cover_image.get(
+                        self.image_urls, []
+                    ):
+                        item.cover_image = self._resolve_image(meta)
+                    else:
+                        image_urls = item.image_urls
+                        for index, image in enumerate(item.image_urls):
+                            if ref_urls == image.get(self.image_urls, []):
+                                image_urls[index] = self._resolve_image(meta, index)
+                        item.image_urls = image_urls
+                else:
+                    ItemAdapter(item)[self.images_urls_field] = [
+                        meta["path"] for success, meta in results if success
+                    ]
+            
+            return item
+
+    def _resolve_image(self, meta, index=0):
+        return dict(
+            index=index,
+            url=meta["path"],
+            ref_urls=[meta["url"]],
+            width=meta["width"],
+            height=meta["height"],
+        )

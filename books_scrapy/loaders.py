@@ -6,8 +6,9 @@ from scrapy.loader import ItemLoader
 
 
 def _image_urls(args):
-    return map(lambda url: dict(url=url), arg_to_iter(args))
-
+    return [
+        dict(index=index, ref_urls=[url]) for index, url in enumerate(arg_to_iter(args))
+    ]
 
 def _splitting(value):
     if not value:
