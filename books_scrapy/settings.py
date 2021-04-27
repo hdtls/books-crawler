@@ -70,7 +70,7 @@ DOWNLOADER_MIDDLEWARES = {
 # }
 MYSQL_HOST = "localhost"
 MYSQL_PORT = "3306"
-MYSQL_URL = "mysql+pymysql://swift:mysql@localhost:3306/scrapy?charset=utf8mb4"
+MYSQL_URL = "mysql+pymysql://swift:mysql@localhost:3306/books?charset=utf8mb4"
 
 IMAGES_STORE = str(Path.home()) + "/Downloads"
 
@@ -113,7 +113,7 @@ ITEM_PIPELINES = {
     "books_scrapy.pipelines.validate.ValidatePipeline": 200,
     "books_scrapy.pipelines.images.ImagesPipeline": 400,
     "books_scrapy.pipelines.sql.MySQLPipeline": 500,
-    "scrapy_redis.pipelines.RedisPipeline": 300,
+    # "scrapy_redis.pipelines.RedisPipeline": 300,
 }
 
 # The item pipeline serializes and stores the items in this redis key.
