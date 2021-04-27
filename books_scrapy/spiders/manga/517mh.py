@@ -99,7 +99,7 @@ class The517MangaSpider(BookSpider):
         loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
         loader.add_value(
-            "image_urls",
+            "asset",
             list(
                 map(
                     lambda url: self._replace_img_url_hostname(url, config),

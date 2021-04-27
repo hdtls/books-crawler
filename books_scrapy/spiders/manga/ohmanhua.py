@@ -79,7 +79,7 @@ class OHManhuaSpider(BookSpider):
         loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
         loader.add_value(
-            "image_urls",
+            "asset",
             list(
                 map(
                     lambda page: base_url + str(start_index + page).zfill(4) + ".jpg",

@@ -48,7 +48,7 @@ class FSImageStore(FSFilesStore):
 class ImagesPipeline(images.ImagesPipeline):
     """Abstract pipeline that implement the image thumbnail generation logic"""
 
-    image_urls = "ref_urls"
+    ref_urls = "ref_urls"
 
     STORE_SCHEMES = {
         "": FSFilesStore,
@@ -63,16 +63,16 @@ class ImagesPipeline(images.ImagesPipeline):
 
         if isinstance(item, Manga):
             if item.cover_image:
-                urls.extend(item.cover_image.get(self.image_urls, []))
+                urls.extend(item.cover_image.get(self.ref_urls, []))
             if item.background_image:
-                urls.extend(item.background_image.get(self.image_urls, []))
+                urls.extend(item.background_image.get(self.ref_urls, []))
             if item.promo_image:
-                urls.extend(item.promo_image.get(self.image_urls, []))
+                urls.extend(item.promo_image.get(self.ref_urls, []))
         elif isinstance(item, MangaChapter):
             if item.cover_image:
-                urls.extend(item.cover_image.get(self.image_urls, []))
-            for image in item.image_urls:
-                urls.extend(image.get(self.image_urls, []))
+                urls.extend(item.cover_image.get(self.ref_urls, []))
+            for image in item.asset.files:
+                urls.extend(image.get(self.ref_urls, []))
         else:
             urls.extend(ItemAdapter(item).get(self.images_urls_field, []))
 
@@ -156,34 +156,34 @@ class ImagesPipeline(images.ImagesPipeline):
 
                 if isinstance(item, Manga):
                     if item.cover_image and ref_urls == item.cover_image.get(
-                        self.image_urls
+                        self.ref_urls
                     ):
                         item.cover_image = self._resolve_image(meta)
                     elif (
                         item.background_image
-                        and ref_urls == item.background_image.get(self.image_urls, [])
+                        and ref_urls == item.background_image.get(self.ref_urls, [])
                     ):
                         item.background_image = self._resolve_image(meta)
                     elif item.promo_image and ref_urls == item.promo_image.get(
-                        self.image_urls, []
+                        self.ref_urls, []
                     ):
                         item.promo_image = self._resolve_image(meta)
                 elif isinstance(item, MangaChapter):
                     if item.cover_image and ref_urls == item.cover_image.get(
-                        self.image_urls, []
+                        self.ref_urls, []
                     ):
                         item.cover_image = self._resolve_image(meta)
                     else:
-                        image_urls = item.image_urls
-                        for index, image in enumerate(item.image_urls):
-                            if ref_urls == image.get(self.image_urls, []):
-                                image_urls[index] = self._resolve_image(meta, index)
-                        item.image_urls = image_urls
+                        files = item.asset.files
+                        for index, image in enumerate(item.asset.files):
+                            if ref_urls == image.get(self.ref_urls, []):
+                                files[index] = self._resolve_image(meta, index)
+                        item.asset.files = files
                 else:
                     ItemAdapter(item)[self.images_urls_field] = [
                         meta["path"] for success, meta in results if success
                     ]
-            
+
             return item
 
     def _resolve_image(self, meta, index=0):

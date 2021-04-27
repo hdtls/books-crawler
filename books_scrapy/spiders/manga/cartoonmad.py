@@ -57,10 +57,11 @@ class CartoonMadSpider(BookSpider):
         loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
         loader.add_value(
-            "image_urls",
+            "asset",
             list(
                 map(
-                    lambda page: img_url[:-3] + str(page + 1).zfill(3), range(page_size)
+                    lambda page: img_url[:-3] + str(page + 1).zfill(3),
+                    range(page_size),
                 )
             ),
         )

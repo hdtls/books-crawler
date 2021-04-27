@@ -38,6 +38,7 @@ class Level(enum.Enum):
 @dataclass
 @mapper_registry.mapped
 class Author:
+
     __table__ = Table(
         "users",
         mapper_registry.metadata,
@@ -135,6 +136,50 @@ class MangaArea:
             raise type_mismatch(self, "name", str, self.name)
 
 
+@dataclass
+@mapper_registry.mapped
+class PHAsset:
+    __table__ = Table(
+        "manga_chapters_assets",
+        mapper_registry.metadata,
+        Column("id", BigInteger, default=snowflake, primary_key=True),
+        Column("chapter_id", BigInteger, ForeignKey("manga_chapters.id")),
+        Column("files", JSON(none_as_null=True), default=[], nullable=False),
+        Column("created_at", DateTime, default=datetime.utcnow()),
+        Column(
+            "updated_at",
+            DateTime,
+            default=datetime.utcnow(),
+            onupdate=datetime.utcnow(),
+        ),
+    )
+
+    __mapper_args__ = {
+        "properties": {"chapter": relationship("MangaChapter", back_populates="asset")}
+    }
+
+    files: List[dict]
+
+    @property
+    def page_size(self):
+        return len(self.files)
+
+    def merge(self, other):
+        if self.page_size <= other.page_size:
+            self.files = other.files
+
+    def validate(self):
+        if not self.files:
+            raise DecodingError("Error: value required for key 'files'")
+
+        if not isinstance(self.files, List):
+            raise type_mismatch(self, "files", "<class 'List[str]'>", self.files)
+        if isinstance(self.files, List):
+            for index, url in enumerate(self.files):
+                if not isinstance(url, dict):
+                    raise type_mismatch(self, f"files[{index}]", dict, url)
+
+
 @dataclass()
 @mapper_registry.mapped
 class MangaChapter:
@@ -145,7 +190,6 @@ class MangaChapter:
         Column("signature", String(32), nullable=False, unique=True),
         Column("cover_image", JSON(none_as_null=True)),
         Column("name", String, nullable=False),
-        Column("image_urls", JSON(none_as_null=True), default=[], nullable=False),
         Column("ref_urls", JSON(none_as_null=True)),
         Column("book_id", BigInteger, ForeignKey("manga.id")),
         Column("created_at", DateTime, default=datetime.utcnow()),
@@ -157,16 +201,18 @@ class MangaChapter:
         ),
     )
 
+    __mapper_args__ = {
+        "properties": {
+            "asset": relationship("PHAsset", back_populates="chapter", uselist=False)
+        }
+    }
+
     name: str
     signature: str
-    image_urls: List[dict]
+    asset: PHAsset
     books_query_id: str = None
     cover_image: Optional[dict] = None
     ref_urls: Optional[List[str]] = None
-
-    @property
-    def page_size(self):
-        return len(self.image_urls)
 
     def make_signature(self):
         plaintext = self.books_query_id + self.name
@@ -176,29 +222,18 @@ class MangaChapter:
         return md5.hexdigest()
 
     def merge(self, other):
+        if self.asset.page_size < other.asset.page_size:
+            self.asset = other.asset
+
         self.ref_urls = list_extend(self.ref_urls, other.ref_urls)
-
-        if self.page_size <= other.page_size:
-            self.image_urls = other.image_urls
-
         self.cover_image = updated_image(self.cover_image, other.cover_image)
 
     def validate(self):
         if not self.name:
             raise DecodingError("Error: value required for key 'name'")
-        if not self.image_urls:
-            raise DecodingError("Error: value required for key 'image_urls'")
 
         if not isinstance(self.name, str):
             raise type_mismatch(self, "name", str, self.name)
-        if not isinstance(self.image_urls, List):
-            raise type_mismatch(
-                self, "image_urls", "<class 'List[str]'>", self.image_urls
-            )
-        if isinstance(self.image_urls, List):
-            for index, url in enumerate(self.image_urls):
-                if not isinstance(url, dict):
-                    raise type_mismatch(self, f"image_urls[{index}]", dict, url)
         if not isinstance(self.cover_image, dict) and self.cover_image:
             raise type_mismatch(self, "cover_image", dict, self.cover_image)
         if not isinstance(self.ref_urls, List) and self.ref_urls:
@@ -371,6 +406,9 @@ class Manga:
 
 def updated_image(__orig, __new):
     # Only update when __new item have url or __orig is None.
+    if not __new:
+        return __orig
+
     if not __orig or (__new and __new.get("url")):
         image = __orig or {}
         image["index"] = __new.get("index")
@@ -382,6 +420,7 @@ def updated_image(__orig, __new):
         )
         return image
     return __orig
+
 
 @dataclass
 class QTCMSConfiguration:
