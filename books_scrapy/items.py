@@ -136,7 +136,7 @@ class MangaArea:
             raise type_mismatch(self, "name", str, self.name)
 
 
-@dataclass
+@dataclass(repr=False)
 @mapper_registry.mapped
 class PHAsset:
     __table__ = Table(
@@ -165,7 +165,9 @@ class PHAsset:
         return len(self.files)
 
     def merge(self, other):
-        if self.page_size <= other.page_size:
+        if self.page_size < other.page_size:
+            # If self.page_size less than other.page_size means current files has missing pages.
+            # force update to new value.
             self.files = other.files
 
     def validate(self):
@@ -180,7 +182,7 @@ class PHAsset:
                     raise type_mismatch(self, f"files[{index}]", dict, url)
 
 
-@dataclass()
+@dataclass
 @mapper_registry.mapped
 class MangaChapter:
     __table__ = Table(
@@ -222,9 +224,7 @@ class MangaChapter:
         return md5.hexdigest()
 
     def merge(self, other):
-        if self.asset.page_size < other.asset.page_size:
-            self.asset = other.asset
-
+        self.asset.merge(other.asset)
         self.ref_urls = list_extend(self.ref_urls, other.ref_urls)
         self.cover_image = updated_image(self.cover_image, other.cover_image)
 
@@ -244,7 +244,7 @@ class MangaChapter:
                     raise type_mismatch(self, f"ref_urls[{index}]", str, url)
 
 
-@dataclass
+@dataclass(repr=False)
 @mapper_registry.mapped
 class Manga:
     __table__ = Table(
