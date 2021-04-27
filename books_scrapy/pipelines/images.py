@@ -1,14 +1,14 @@
-import enum
 import hashlib
 import logging
 import os
-import time
 
 from books_scrapy.items import Manga, MangaChapter
-from contextlib import suppress
+from books_scrapy.utils.bili import biligen
+from books_scrapy.utils.snowflake import snowflake
 from itemadapter import ItemAdapter
 from io import BytesIO
 from PIL import Image
+from scrapy.exceptions import DropItem
 from scrapy.http.request import Request
 from scrapy.pipelines import images
 from scrapy.pipelines.files import (
@@ -19,6 +19,9 @@ from scrapy.pipelines.files import (
 )
 from scrapy.utils.log import failure_to_exc_info
 from scrapy.utils.request import referer_str
+from scrapy.utils.project import get_project_settings
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 from twisted.internet import defer
 
 logger = logging.getLogger(__name__)
@@ -33,6 +36,7 @@ class FSImageStore(FSFilesStore):
             return {}
 
         with open(absolute_path, "rb") as f:
+
             data = f.read()
             checksum = hashlib.md5(data).hexdigest()
             image = Image.open(BytesIO(data))
@@ -58,7 +62,44 @@ class ImagesPipeline(images.ImagesPipeline):
         "ftp": FTPFilesStore,
     }
 
+    def open_spider(self, spider):
+        super().open_spider(spider)
+        engine = create_engine(get_project_settings()["MYSQL_URL"], encoding="utf8")
+        self.session: Session = sessionmaker(bind=engine)()
+
+    def close_spider(self, spider):
+        self.session.close()
+
     def get_media_requests(self, item, info):
+        def _resolve_item_id(session, item):
+            if isinstance(item, Manga):
+                exsit_item = (
+                    session.query(Manga)
+                    .filter(Manga.signature == item.signature)
+                    .first()
+                )
+                item.id = exsit_item.id if exsit_item else snowflake()
+
+            elif isinstance(item, MangaChapter):
+                exsit_item = (
+                    session.query(Manga)
+                    .filter(Manga.signature == item.books_query_id)
+                    .first()
+                )
+
+                if not exsit_item:
+                    raise DropItem("Missing parent item.", item)
+
+                filtered_item = next(
+                    filter(lambda el: el.name == item.name, exsit_item.chapters),
+                    None,
+                )
+
+                item.id = filtered_item.id if filtered_item else snowflake()
+                item.book_id = exsit_item.id
+
+        _resolve_item_id(self.session, item)
+
         urls = []
 
         if isinstance(item, Manga):
@@ -76,10 +117,12 @@ class ImagesPipeline(images.ImagesPipeline):
         else:
             urls.extend(ItemAdapter(item).get(self.images_urls_field, []))
 
-        yield from [Request(url) for url in urls[:2]]
+        return [Request(url) for url in urls]
 
     def media_to_download(self, request, info, *, item=None):
         def _success(result):
+            import time
+
             if not result:
                 return  # returning None force download
 
@@ -123,14 +166,14 @@ class ImagesPipeline(images.ImagesPipeline):
         )
         return dfd
 
-    def media_downloaded(self, response, request, info, *, item):
+    def media_downloaded(self, response, request, info, *, item=None):
         msg = super().media_downloaded(response, request, info, item=item)
         msg["width"] = msg["checksum"]["width"]
         msg["height"] = msg["checksum"]["height"]
         msg["checksum"] = msg["checksum"]["checksum"]
         return msg
 
-    def file_downloaded(self, response, request, info, *, item):
+    def file_downloaded(self, response, request, info, *, item=None):
         checksum = None
         for path, image, buf in self.get_images(response, request, info, item=item):
             if checksum is None:
@@ -147,48 +190,89 @@ class ImagesPipeline(images.ImagesPipeline):
         return {"checksum": checksum, "width": width, "height": height}
 
     def item_completed(self, results, item, info):
-        with suppress(KeyError):
-            for success, meta in results:
-                if not success:
-                    continue
+        for result in results:
+            if not result[0]:
+                logger.debug(result[1])
+                continue
 
-                ref_urls = [meta["url"]]
+            urls = [result[1]["url"]]
 
-                if isinstance(item, Manga):
-                    if item.cover_image and ref_urls == item.cover_image.get(
-                        self.ref_urls
-                    ):
-                        item.cover_image = self._resolve_image(meta)
-                    elif (
-                        item.background_image
-                        and ref_urls == item.background_image.get(self.ref_urls, [])
-                    ):
-                        item.background_image = self._resolve_image(meta)
-                    elif item.promo_image and ref_urls == item.promo_image.get(
-                        self.ref_urls, []
-                    ):
-                        item.promo_image = self._resolve_image(meta)
-                elif isinstance(item, MangaChapter):
-                    if item.cover_image and ref_urls == item.cover_image.get(
-                        self.ref_urls, []
-                    ):
-                        item.cover_image = self._resolve_image(meta)
-                    else:
-                        files = item.asset.files
-                        for index, image in enumerate(item.asset.files):
-                            if ref_urls == image.get(self.ref_urls, []):
-                                files[index] = self._resolve_image(meta, index)
-                        item.asset.files = files
+            if isinstance(item, Manga):
+                # If item is Manga instance there are several field needs update.
+                # e.g. cover_image, background_image, promo_image.
+                if item.cover_image and urls == item.cover_image.get(self.ref_urls):
+                    item.cover_image = self._make_asset_file(result)
+                elif item.background_image and urls == item.background_image.get(
+                    self.ref_urls
+                ):
+                    item.background_image = self._make_asset_file(result)
+                elif item.promo_image and urls == item.promo_image.get(self.ref_urls):
+                    item.promo_image = self._make_asset_file(result)
+            elif isinstance(item, MangaChapter):
+                files = item.asset.files
+                if item.cover_image and urls == item.cover_image.get(self.ref_urls):
+                    item.cover_image = self._make_asset_file(result)
                 else:
-                    ItemAdapter(item)[self.images_urls_field] = [
-                        meta["path"] for success, meta in results if success
-                    ]
+                    for index, image in enumerate(item.asset.files):
+                        if urls == image.get(self.ref_urls):
+                            # Keep index same as original.
+                            files[index] = self._make_asset_file(result)
+                item.asset.files = files
 
-            return item
+            else:
+                ItemAdapter(item)[self.images_urls_field] = [
+                    meta["path"] for success, meta in results if success
+                ]
 
-    def _resolve_image(self, meta, index=0):
+        if isinstance(item, MangaChapter):
+            # Filter success downloaded image files.
+            item.asset.files = list(
+                filter(lambda file: file.get("url"), item.asset.files)
+            )
+        return item
+
+    def file_path(self, request, response=None, info=None, *, item=None):
+        """Override file_path with id relative value to reduce duplicated downloads from difference spider."""
+        if isinstance(item, Manga):
+            if item.cover_image and item.cover_image.get(self.ref_urls, []) == [
+                request.url
+            ]:
+                return self._resolve_file_path(item.id, "cover_image")
+            elif item.background_image and item.background_image.get(
+                self.ref_urls, []
+            ) == [request.url]:
+                return self._resolve_file_path(item.id, "background_image")
+            elif item.promo_image and item.promo_image.get(self.ref_urls, []) == [
+                request.url
+            ]:
+                return self._resolve_file_path(item.id, "promo_image")
+        elif isinstance(item, MangaChapter):
+            if item.cover_image and item.cover_image.get(self.ref_urls, []) == [
+                request.url
+            ]:
+                return self._resolve_file_path([item.book_id, item.id], "cover_image")
+            else:
+                for index, file in enumerate(item.asset.files):
+                    if file.get(self.ref_urls, []) == [request.url]:
+                        return self._resolve_file_path(
+                            [item.book_id, item.id], f"{index}"
+                        )
+        else:
+            return super().file_path(request, response=response, info=info, item=item)
+
+    def _resolve_file_path(self, args, filename):
+        from scrapy.utils.misc import arg_to_iter
+        from scrapy.utils.python import to_bytes
+
+        return f"full/{'/'.join(map(lambda arg: biligen(arg), arg_to_iter(args)))}/{hashlib.sha1(to_bytes(filename)).hexdigest()}.jpg"
+
+    def _make_asset_file(self, result):
+        failure = result[0]
+        if not failure:
+            return None
+
+        meta = result[1]
         return dict(
-            index=index,
             url=meta["path"],
             ref_urls=[meta["url"]],
             width=meta["width"],
