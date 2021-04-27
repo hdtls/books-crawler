@@ -1,3 +1,4 @@
+from scrapy.loader import ItemLoader
 from books_scrapy.spiders import BookSpider
 import json
 import re
@@ -64,7 +65,7 @@ class The36MHSpider(BookSpider):
         loader.add_xpath("name", "//div[contains(@class, 'w996 title pr')]/h2/text()")
         loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
-        loader.add_value("image_urls", image_urls)
+        loader.add_value("asset", image_urls)
 
         item = loader.load_item()
 
@@ -97,13 +98,13 @@ class The36MHSpider(BookSpider):
         domain = domain[0]
 
         item = revert_formatted_meta(response.meta)
-        
-        image_urls = []
-        for image in item.image_urls:
-            image["ref_urls"] = list(map(lambda url: domain + url, image["ref_urls"]))
-            image_urls.append(image)
 
-        item.image_urls = image_urls
+        files = []
+        for image in item.asset.files:
+            image["ref_urls"] = list(map(lambda url: domain + url, image["ref_urls"]))
+            files.append(image)
+
+        item.asset.files = files
 
         yield item
 

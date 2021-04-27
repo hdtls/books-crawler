@@ -126,7 +126,6 @@ class MySQLPipeline:
             if filtered_item:
                 filtered_item.merge(item)
                 flag_modified(filtered_item, "cover_image")
-                flag_modified(filtered_item, "image_urls")
                 flag_modified(exsit_item, "chapters")
             else:
                 item.book_id = exsit_item.id
