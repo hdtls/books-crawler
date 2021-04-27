@@ -1,6 +1,6 @@
 import logging
 
-from books_scrapy.items import Author, Manga, MangaArea, MangaCategory, MangaChapter
+import books_scrapy.items as m
 from books_scrapy.utils.diff import iter_diff
 from scrapy.exceptions import DropItem
 from sqlalchemy import create_engine
@@ -32,11 +32,13 @@ class MySQLPipeline:
         # Identifier for whether to add new one or just run update.
         is_add = True
 
-        if isinstance(item, Manga):
+        if isinstance(item, m.Manga):
             item.signature = item.make_signature()
 
             exsit_item = (
-                session.query(Manga).filter(Manga.signature == item.signature).first()
+                session.query(m.Manga)
+                .filter(m.Manga.signature == item.signature)
+                .first()
             )
 
             if exsit_item and exsit_item.copyrighted:
@@ -51,8 +53,8 @@ class MySQLPipeline:
                 # Try to query `MangaArea.id` from db. If exsit write it to `item` else
                 # save `item.area` as new `MangaArea` item. then asign id value to `item`.
                 area_id = (
-                    session.query(MangaArea.id)
-                    .filter(MangaArea.name == item.area.name)
+                    session.query(m.MangaArea.id)
+                    .filter(m.MangaArea.name == item.area.name)
                     .first()
                 )
                 if area_id:
@@ -67,8 +69,8 @@ class MySQLPipeline:
             else:
                 # Query all authors that name in item.authors
                 orig_authors = (
-                    session.query(Author)
-                    .filter(Author.name.in_(map(lambda e: e.name, item.authors)))
+                    session.query(m.Author)
+                    .filter(m.Author.name.in_(map(lambda e: e.name, item.authors)))
                     .all()
                 )
 
@@ -86,9 +88,9 @@ class MySQLPipeline:
                 orig_CAT = exsit_item.categories
             else:
                 orig_CAT = (
-                    session.query(MangaCategory)
+                    session.query(m.MangaCategory)
                     .filter(
-                        MangaCategory.name.in_(map(lambda e: e.name, item.categories))
+                        m.MangaCategory.name.in_(map(lambda e: e.name, item.categories))
                     )
                     .all()
                 )
@@ -101,17 +103,20 @@ class MySQLPipeline:
             if exsit_item:
                 exsit_item.merge(item)
                 flag_modified(exsit_item, "cover_image")
+                flag_modified(exsit_item, "background_image")
+                flag_modified(exsit_item, "promo_image")
                 is_add = False
             else:
                 exsit_item = item
 
-        elif isinstance(item, MangaChapter):
+            return self._handle_write(exsit_item, is_add)
+        elif isinstance(item, m.MangaChapter):
             item.signature = item.make_signature()
             is_add = False
 
             exsit_item = (
-                session.query(Manga)
-                .filter(Manga.signature == item.books_query_id)
+                session.query(m.Manga)
+                .filter(m.Manga.signature == item.books_query_id)
                 .first()
             )
 
@@ -126,12 +131,13 @@ class MySQLPipeline:
             if filtered_item:
                 filtered_item.merge(item)
                 flag_modified(filtered_item, "cover_image")
-                flag_modified(exsit_item, "chapters")
+                self._handle_write(exsit_item, is_add=is_add)
+                return filtered_item
             else:
                 item.book_id = exsit_item.id
                 exsit_item.chapters.append(item)
-
-        return self._handle_write(exsit_item, is_add=is_add)
+                self._handle_write(exsit_item, is_add=is_add)
+                return item
 
     def _handle_write(self, item, is_add=True):
         """
