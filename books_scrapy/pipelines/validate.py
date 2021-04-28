@@ -1,4 +1,4 @@
-from books_scrapy.utils.coding import DecodingError
+from books_scrapy.utils.typing_inspect import CodingError, typing_inspect
 from scrapy.exceptions import DropItem
 
 
@@ -11,12 +11,8 @@ class ValidatePipeline:
         return cls(crawler)
 
     def process_item(self, item, spider):
-        if hasattr(item, "validate"):
-            try:
-                item.validate()
-            except DecodingError as e:
-                raise DropItem(str(e))
-        else:
-            raise DropItem("Unsupported item.", item)
-
+        try:
+            typing_inspect(item)
+        except CodingError as e:
+            raise DropItem(str(e))
         return item
