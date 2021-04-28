@@ -14,6 +14,7 @@ from books_scrapy.utils.misc import (
 
 class The36MHSpider(BookSpider):
     name = "www.36mh.net"
+    # start_urls = ["https://www.36mh.net/manhua/jiesuomoshide99genvzhu/"]
 
     def get_detail(self, response):
         loader = MangaLoader(response=response)
@@ -22,13 +23,8 @@ class The36MHSpider(BookSpider):
         loader.add_xpath("excerpt", "//div[@id='intro-all']//p/text()")
         loader.add_value(
             "cover_image",
-            list(
-                map(
-                    self._replace_img_url_hostname,
-                    response.xpath(
-                        "//div[contains(@class, 'book-cover')]/p/img/@src"
-                    ).getall(),
-                )
+            self._replace_img_url_hostname(
+                response.xpath("//div[contains(@class, 'book-cover')]/p/img/@src").get()
             ),
         )
         loader.add_value("ref_urls", [response.url])
@@ -101,7 +97,7 @@ class The36MHSpider(BookSpider):
 
         files = []
         for image in item.asset.files:
-            image["ref_urls"] = list(map(lambda url: domain + url, image["ref_urls"]))
+            image["ref_url"] = domain + image["ref_url"]
             files.append(image)
 
         item.asset.files = files
