@@ -6,10 +6,10 @@
 import enum
 import hashlib
 
-from books_scrapy.utils.coding import DecodingError, type_mismatch
 from books_scrapy.utils.diff import iter_diff
 from books_scrapy.utils.misc import list_extend
 from books_scrapy.utils.snowflake import snowflake
+from books_scrapy.utils.typing_inspect import CodingError, typing_inspect
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List
@@ -61,12 +61,6 @@ class Author:
             return False
         return self.name == o.name
 
-    def validate(self):
-        if not self.name:
-            raise DecodingError("Error: value required for key 'name'")
-        if not isinstance(self.name, str):
-            raise type_mismatch(self, "name", str, self.name)
-
 
 @dataclass
 @mapper_registry.mapped
@@ -91,12 +85,6 @@ class MangaCategory:
         if not isinstance(o, MangaCategory):
             return False
         return self.name == o.name
-
-    def validate(self):
-        if not self.name:
-            raise DecodingError("Error: value required for key 'name'")
-        if not isinstance(self.name, str):
-            raise type_mismatch(self, "name", str, self.name)
 
 
 @dataclass
@@ -128,12 +116,6 @@ class MangaArea:
         if not isinstance(o, MangaArea):
             return False
         return self.name == o.name
-
-    def validate(self):
-        if not self.name:
-            raise DecodingError("Error: value required for key 'name'")
-        if not isinstance(self.name, str):
-            raise type_mismatch(self, "name", str, self.name)
 
 
 @dataclass(repr=False)
@@ -170,16 +152,14 @@ class PHAsset:
             # force update to new value.
             self.files = other.files
 
-    def validate(self):
-        if not self.files:
-            raise DecodingError("Error: value required for key 'files'")
+    def __validate__(self, path=None):
+        typing_inspect(self, path)
 
-        if not isinstance(self.files, List):
-            raise type_mismatch(self, "files", "<class 'List[str]'>", self.files)
-        if isinstance(self.files, List):
-            for index, url in enumerate(self.files):
-                if not isinstance(url, dict):
-                    raise type_mismatch(self, f"files[{index}]", dict, url)
+        for index, url in enumerate(self.files):
+            if not url.get("ref_url"):
+                raise CodingError(
+                    f"Error: value required for key '{path if path else type(self)}.files[{index}].ref_url'"
+                )
 
 
 @dataclass
@@ -210,8 +190,8 @@ class MangaChapter:
     }
 
     name: str
-    signature: str
     asset: PHAsset
+    signature: Optional[str] = None
     books_query_id: str = None
     cover_image: Optional[dict] = None
     ref_urls: Optional[List[str]] = None
@@ -228,20 +208,13 @@ class MangaChapter:
         self.ref_urls = list_extend(self.ref_urls, other.ref_urls)
         self.cover_image = updated_image(self.cover_image, other.cover_image)
 
-    def validate(self):
-        if not self.name:
-            raise DecodingError("Error: value required for key 'name'")
+    def __validate__(self, path=None):
+        typing_inspect(self, path)
 
-        if not isinstance(self.name, str):
-            raise type_mismatch(self, "name", str, self.name)
-        if not isinstance(self.cover_image, dict) and self.cover_image:
-            raise type_mismatch(self, "cover_image", dict, self.cover_image)
-        if not isinstance(self.ref_urls, List) and self.ref_urls:
-            raise type_mismatch(self, "ref_urls", "<class 'List[str]'>", self.ref_urls)
-        if isinstance(self.ref_urls, List):
-            for index, url in enumerate(self.ref_urls):
-                if not isinstance(url, str):
-                    raise type_mismatch(self, f"ref_urls[{index}]", str, url)
+        if self.cover_image and not self.cover_image.get("ref_url"):
+            raise CodingError(
+                f"Error: value required for key '{path if path else type(self)}.cover_image.ref_url'"
+            )
 
 
 @dataclass(repr=False)
@@ -314,22 +287,19 @@ class Manga:
     cover_image: dict
     excerpt: str
     name: str
-    signature: str
+    signature: Optional[str]
     # Schedule for manga publishing. there only have two value,
     # 0 for inprogress or 1 for finished.
     schedule: int = 0
-    # Relationship property remove from init.
     authors: List[Author] = field(default_factory=list)
     # copyrighted: bool = field(default=False)
     ref_urls: Optional[List[str]] = None
     # Use for update `area_id` this is not db column.
     area: Optional[MangaArea] = None
-    # area_id: Optional[int] = field(default=None, init=False, repr=False)
     aliases: Optional[List[str]] = None
     background_image: Optional[dict] = None
     promo_image: Optional[dict] = None
     categories: Optional[List[MangaCategory]] = None
-    # Children relationshp
     chapters: Optional[List[MangaChapter]] = None
 
     def make_signature(self):
@@ -368,40 +338,21 @@ class Manga:
         for category in iter_diff(self.categories, other.categories).added:
             self.categories.append(category)
 
-    def validate(self):
-        if not self.name:
-            raise DecodingError("Error: value required for key 'name'")
-        if not self.excerpt:
-            raise DecodingError("Error: value required for key 'excerpt'")
-        if not self.cover_image:
-            raise DecodingError("Error: value required for key 'cover_image'")
-        if self.schedule is None:
-            raise DecodingError("Error: value required for key 'schedule'")
+    def __validate__(self, path=None):
+        typing_inspect(self, path)
 
-        if not isinstance(self.name, str):
-            raise type_mismatch(self, "name", str, self.name)
-        if not isinstance(self.excerpt, str):
-            raise type_mismatch(self, "excerpt", str, self.excerpt)
-        if not isinstance(self.cover_image, dict):
-            raise type_mismatch(self, "cover_image", dict, self.cover_image)
-        if not isinstance(self.schedule, int):
-            raise type_mismatch(self, "schedule", int, self.schedule)
-        if not isinstance(self.ref_urls, List) and self.ref_urls:
-            raise type_mismatch(self, "ref_urls", "<class 'List[str]'>", self.ref_urls)
-        if isinstance(self.ref_urls, List):
-            for index, url in enumerate(self.ref_urls):
-                if not isinstance(url, str):
-                    raise type_mismatch(self, f"ref_urls[{index}", str, url)
-        if not isinstance(self.aliases, List) and self.aliases:
-            raise type_mismatch(self, "aliases", "<class 'List[str]'>", self.aliases)
-        if isinstance(self.aliases, List):
-            for index, alias in enumerate(self.aliases):
-                if not isinstance(alias, str):
-                    raise type_mismatch(self, f"aliases[{index}", str, alias)
-        if not isinstance(self.background_image, dict) and self.background_image:
-            raise type_mismatch(self, "background_image", dict, self.background_image)
-        if not isinstance(self.promo_image, dict) and self.promo_image:
-            raise type_mismatch(self, "promo_image", dict, self.promo_image)
+        if not self.cover_image.get("ref_url"):
+            raise CodingError(
+                f"Error: value required for key '{path if path else type(self)}.cover_image.ref_url'"
+            )
+        if self.background_image and not self.background_image.get("ref_url"):
+            raise CodingError(
+                f"Error: value required for key '{path if path else type(self)}.background_image.ref_url'"
+            )
+        if self.promo_image and not self.promo_image.get("ref_url"):
+            raise CodingError(
+                f"Error: value required for key '{path if path else type(self)}.promo_image.ref_url'"
+            )
 
 
 def updated_image(__orig, __new):
@@ -415,9 +366,7 @@ def updated_image(__orig, __new):
         image["width"] = __new.get("width")
         image["height"] = __new.get("height")
         image["url"] = __new.get("url")
-        image["ref_urls"] = list_extend(
-            __orig.get("ref_urls", []), __new.get("ref_urls", [])
-        )
+        image["ref_url"] = __new.get("ref_url")
         return image
     return __orig
 
