@@ -11,12 +11,6 @@ from itemloaders.processors import Compose, Identity, MapCompose, TakeFirst
 from scrapy.loader import ItemLoader
 
 
-def _image_urls_maker(args):
-    return [
-        dict(index=index, ref_urls=[url]) for index, url in enumerate(arg_to_iter(args))
-    ]
-
-
 def _splitting(value):
     if not value:
         return []
@@ -36,7 +30,7 @@ class MangaLoader(ItemLoader):
     default_output_processor = TakeFirst()
     default_item_class = Manga
 
-    cover_image_in = Compose(_image_urls_maker)
+    cover_image_in = MapCompose(lambda url: dict(ref_url=url))
     schedule_in = MapCompose(lambda s: 1 if "完结" in s[0] else 0)
     authors_in = MapCompose(_splitting, lambda name: Author(name=name))
     authors_out = Identity()
@@ -57,10 +51,5 @@ class ChapterLoader(ItemLoader):
     ref_urls_out = Identity()
     cover_image_in = MangaLoader.cover_image_in
     asset_out = Compose(
-        lambda urls: PHAsset(
-            files=[
-                dict(index=index, ref_urls=[url])
-                for index, url in enumerate(arg_to_iter(urls))
-            ]
-        )
+        lambda urls: PHAsset(files=[dict(ref_url=url) for url in arg_to_iter(urls)])
     )

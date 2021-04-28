@@ -3,7 +3,7 @@ import logging
 import os
 
 from books_scrapy.items import Manga, MangaChapter
-from books_scrapy.utils.bili import biligen
+from books_scrapy.utils.bili import keygen
 from books_scrapy.utils.snowflake import snowflake
 from itemadapter import ItemAdapter
 from io import BytesIO
@@ -52,7 +52,7 @@ class FSImageStore(FSFilesStore):
 class ImagesPipeline(images.ImagesPipeline):
     """Abstract pipeline that implement the image thumbnail generation logic"""
 
-    ref_urls = "ref_urls"
+    ref_url = "ref_url"
 
     STORE_SCHEMES = {
         "": FSFilesStore,
@@ -104,16 +104,16 @@ class ImagesPipeline(images.ImagesPipeline):
 
         if isinstance(item, Manga):
             if item.cover_image:
-                urls.extend(item.cover_image.get(self.ref_urls, []))
+                urls.append(item.cover_image[self.ref_url])
             if item.background_image:
-                urls.extend(item.background_image.get(self.ref_urls, []))
+                urls.append(item.background_image[self.ref_url])
             if item.promo_image:
-                urls.extend(item.promo_image.get(self.ref_urls, []))
+                urls.append(item.promo_image[self.ref_url])
         elif isinstance(item, MangaChapter):
             if item.cover_image:
-                urls.extend(item.cover_image.get(self.ref_urls, []))
+                urls.append(item.cover_image[self.ref_url])
             for image in item.asset.files:
-                urls.extend(image.get(self.ref_urls, []))
+                urls.append(image[self.ref_url])
         else:
             urls.extend(ItemAdapter(item).get(self.images_urls_field, []))
 
@@ -195,26 +195,26 @@ class ImagesPipeline(images.ImagesPipeline):
                 logger.debug(result[1])
                 continue
 
-            urls = [result[1]["url"]]
+            url = result[1]["url"]
 
             if isinstance(item, Manga):
                 # If item is Manga instance there are several field needs update.
                 # e.g. cover_image, background_image, promo_image.
-                if item.cover_image and urls == item.cover_image.get(self.ref_urls):
+                if item.cover_image and url == item.cover_image.get(self.ref_url):
                     item.cover_image = self._make_asset_file(result)
-                elif item.background_image and urls == item.background_image.get(
-                    self.ref_urls
+                elif item.background_image and url == item.background_image.get(
+                    self.ref_url
                 ):
                     item.background_image = self._make_asset_file(result)
-                elif item.promo_image and urls == item.promo_image.get(self.ref_urls):
+                elif item.promo_image and url == item.promo_image.get(self.ref_url):
                     item.promo_image = self._make_asset_file(result)
             elif isinstance(item, MangaChapter):
                 files = item.asset.files
-                if item.cover_image and urls == item.cover_image.get(self.ref_urls):
+                if item.cover_image and url == item.cover_image.get(self.ref_url):
                     item.cover_image = self._make_asset_file(result)
                 else:
                     for index, image in enumerate(item.asset.files):
-                        if urls == image.get(self.ref_urls):
+                        if url == image.get(self.ref_url):
                             # Keep index same as original.
                             files[index] = self._make_asset_file(result)
                 item.asset.files = files
@@ -234,26 +234,21 @@ class ImagesPipeline(images.ImagesPipeline):
     def file_path(self, request, response=None, info=None, *, item=None):
         """Override file_path with id relative value to reduce duplicated downloads from difference spider."""
         if isinstance(item, Manga):
-            if item.cover_image and item.cover_image.get(self.ref_urls, []) == [
-                request.url
-            ]:
+            if item.cover_image and item.cover_image.get(self.ref_url) == request.url:
                 return self._resolve_file_path(item.id, "cover_image")
-            elif item.background_image and item.background_image.get(
-                self.ref_urls, []
-            ) == [request.url]:
+            elif (
+                item.background_image
+                and item.background_image.get(self.ref_url) == request.url
+            ):
                 return self._resolve_file_path(item.id, "background_image")
-            elif item.promo_image and item.promo_image.get(self.ref_urls, []) == [
-                request.url
-            ]:
+            elif item.promo_image and item.promo_image.get(self.ref_url) == request.url:
                 return self._resolve_file_path(item.id, "promo_image")
         elif isinstance(item, MangaChapter):
-            if item.cover_image and item.cover_image.get(self.ref_urls, []) == [
-                request.url
-            ]:
+            if item.cover_image and item.cover_image.get(self.ref_url) == request.url:
                 return self._resolve_file_path([item.book_id, item.id], "cover_image")
             else:
                 for index, file in enumerate(item.asset.files):
-                    if file.get(self.ref_urls, []) == [request.url]:
+                    if file.get(self.ref_url) == request.url:
                         return self._resolve_file_path(
                             [item.book_id, item.id], f"{index}"
                         )
@@ -264,17 +259,16 @@ class ImagesPipeline(images.ImagesPipeline):
         from scrapy.utils.misc import arg_to_iter
         from scrapy.utils.python import to_bytes
 
-        return f"full/{'/'.join(map(lambda arg: biligen(arg), arg_to_iter(args)))}/{hashlib.sha1(to_bytes(filename)).hexdigest()}.jpg"
+        return f"full/{'/'.join(map(lambda arg: keygen(arg), arg_to_iter(args)))}/{hashlib.sha1(to_bytes(filename)).hexdigest()}.jpg"
 
     def _make_asset_file(self, result):
-        failure = result[0]
-        if not failure:
+        try:
+            meta = result[1]
+            return dict(
+                url=meta["path"],
+                ref_url=meta["url"],
+                width=meta["width"],
+                height=meta["height"],
+            )
+        except:
             return None
-
-        meta = result[1]
-        return dict(
-            url=meta["path"],
-            ref_urls=[meta["url"]],
-            width=meta["width"],
-            height=meta["height"],
-        )
