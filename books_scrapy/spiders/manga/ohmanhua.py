@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 class OHManhuaSpider(BookSpider):
     name = "www.cocomanhua.com"
+    # start_urls = ["https://www.cocomanhua.com/19338/"]
 
     def get_detail(self, response):
         loader = MangaLoader(response=response)
@@ -25,18 +26,12 @@ class OHManhuaSpider(BookSpider):
             text = li.xpath("./a/text()").get()
             if label == "别名":
                 # 17892
-                loader.add_value(
-                    "aliases",
-                    next(filter(lambda str: str != " ", li.xpath("./text()").getall())),
-                )
+                loader.add_value("aliases", li.xpath("./text()").get())
             elif label == "状态":
                 loader.add_value("schedule", text)
             elif label == "作者":
                 # Wrong author label e.g. https://www.cocomanhua.com/17823/
-                loader.add_value(
-                    "authors",
-                    text[3:] if text.startswith("作者:") else text,
-                )
+                loader.add_value("authors", text)
             elif label == "类别":
                 loader.add_value("categories", li.xpath("./a/text()").getall())
             elif label == "简介":
@@ -79,7 +74,7 @@ class OHManhuaSpider(BookSpider):
         loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
         loader.add_value(
-            "asset",
+            "assets",
             list(
                 map(
                     lambda page: base_url + str(start_index + page).zfill(4) + ".jpg",

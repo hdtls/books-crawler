@@ -35,8 +35,8 @@ class Level(enum.Enum):
     zombie = "zombie"
 
 
-@dataclass
 @mapper_registry.mapped
+@dataclass(init=False)
 class Author:
 
     __table__ = Table(
@@ -54,7 +54,7 @@ class Author:
         ),
     )
 
-    name: str
+    name: str = field(default_factory=str)
 
     def __eq__(self, o: object) -> bool:
         if not isinstance(o, Author):
@@ -62,8 +62,8 @@ class Author:
         return self.name == o.name
 
 
-@dataclass
 @mapper_registry.mapped
+@dataclass(init=False)
 class MangaCategory:
     __table__ = Table(
         "manga_categories",
@@ -87,8 +87,8 @@ class MangaCategory:
         return self.name == o.name
 
 
-@dataclass
 @mapper_registry.mapped
+@dataclass(init=False)
 class MangaArea:
     __table__ = Table(
         "manga_areas",
@@ -118,8 +118,8 @@ class MangaArea:
         return self.name == o.name
 
 
-@dataclass(repr=False)
 @mapper_registry.mapped
+@dataclass(init=False)
 class PHAsset:
     __table__ = Table(
         "manga_chapters_assets",
@@ -137,10 +137,10 @@ class PHAsset:
     )
 
     __mapper_args__ = {
-        "properties": {"chapter": relationship("MangaChapter", back_populates="asset")}
+        "properties": {"chapter": relationship("MangaChapter", back_populates="assets")}
     }
 
-    files: List[dict]
+    files: List[dict] = field(default_factory=list, repr=False)
 
     @property
     def page_size(self):
@@ -162,8 +162,8 @@ class PHAsset:
                 )
 
 
-@dataclass
 @mapper_registry.mapped
+@dataclass(init=False)
 class MangaChapter:
     __table__ = Table(
         "manga_chapters",
@@ -185,12 +185,12 @@ class MangaChapter:
 
     __mapper_args__ = {
         "properties": {
-            "asset": relationship("PHAsset", back_populates="chapter", uselist=False)
+            "assets": relationship("PHAsset", back_populates="chapter", uselist=False)
         }
     }
 
     name: str
-    asset: PHAsset
+    assets: PHAsset
     signature: Optional[str] = None
     books_query_id: str = None
     cover_image: Optional[dict] = None
@@ -199,14 +199,12 @@ class MangaChapter:
     def make_signature(self):
         plaintext = self.books_query_id + self.name
         plaintext = plaintext.encode("utf-8")
-        md5 = hashlib.md5()
-        md5.update(plaintext)
-        return md5.hexdigest()
+        return hashlib.md5(plaintext).hexdigest()
 
     def merge(self, other):
-        self.asset.merge(other.asset)
+        self.assets.merge(other.assets)
         self.ref_urls = list_extend(self.ref_urls, other.ref_urls)
-        self.cover_image = updated_image(self.cover_image, other.cover_image)
+        self.cover_image = merge_image(self.cover_image, other.cover_image)
 
     def __validate__(self, path=None):
         typing_inspect(self, path)
@@ -217,8 +215,29 @@ class MangaChapter:
             )
 
 
-@dataclass(repr=False)
+def link_tables(tbl1, tbl2):
+    return Table(
+        "_".join([tbl1, tbl2, "linkers"]),
+        mapper_registry.metadata,
+        Column(
+            "id",
+            BigInteger,
+            default=snowflake,
+            nullable=False,
+            primary_key=True,
+        ),
+        Column("from", BigInteger, ForeignKey(tbl1 + ".id")),
+        Column("to", BigInteger, ForeignKey(tbl2 + ".id")),
+    )
+
+
+users_manga_linkers = link_tables("users", "manga")
+
+manga_categories_manga_linkers = link_tables("manga_categories", "manga")
+
+
 @mapper_registry.mapped
+@dataclass(init=False)
 class Manga:
     __table__ = Table(
         "manga",
@@ -249,36 +268,12 @@ class Manga:
             "chapters": relationship("MangaChapter", backref="manga"),
             "authors": relationship(
                 "Author",
-                secondary=Table(
-                    "users_manga_linkers",
-                    mapper_registry.metadata,
-                    Column(
-                        "id",
-                        BigInteger,
-                        default=snowflake,
-                        nullable=False,
-                        primary_key=True,
-                    ),
-                    Column("from", BigInteger, ForeignKey("users.id")),
-                    Column("to", BigInteger, ForeignKey("manga.id")),
-                ),
+                secondary=users_manga_linkers,
                 backref="manga",
             ),
             "categories": relationship(
                 "MangaCategory",
-                secondary=Table(
-                    "manga_categories_manga_linkers",
-                    mapper_registry.metadata,
-                    Column(
-                        "id",
-                        BigInteger,
-                        default=snowflake,
-                        nullable=False,
-                        primary_key=True,
-                    ),
-                    Column("from", BigInteger, ForeignKey("manga_categories.id")),
-                    Column("to", BigInteger, ForeignKey("manga.id")),
-                ),
+                secondary=manga_categories_manga_linkers,
                 backref="manga",
             ),
         }
@@ -288,13 +283,9 @@ class Manga:
     excerpt: str
     name: str
     signature: Optional[str]
-    # Schedule for manga publishing. there only have two value,
-    # 0 for inprogress or 1 for finished.
     schedule: int = 0
     authors: List[Author] = field(default_factory=list)
-    # copyrighted: bool = field(default=False)
     ref_urls: Optional[List[str]] = None
-    # Use for update `area_id` this is not db column.
     area: Optional[MangaArea] = None
     aliases: Optional[List[str]] = None
     background_image: Optional[dict] = None
@@ -326,11 +317,11 @@ class Manga:
         self.schedule = other.schedule
         self.ref_urls = list_extend(self.ref_urls, other.ref_urls)
 
-        self.cover_image = updated_image(self.cover_image, other.cover_image)
-        self.background_image = updated_image(
+        self.cover_image = merge_image(self.cover_image, other.cover_image)
+        self.background_image = merge_image(
             self.background_image, other.background_image
         )
-        self.promo_image = updated_image(self.promo_image, other.promo_image)
+        self.promo_image = merge_image(self.promo_image, other.promo_image)
 
         for author in iter_diff(self.authors, other.authors).added:
             self.authors.append(author)
@@ -355,12 +346,9 @@ class Manga:
             )
 
 
-def updated_image(__orig, __new):
-    # Only update when __new item have url or __orig is None.
-    if not __new:
-        return __orig
-
-    if not __orig or (__new and __new.get("url")):
+def merge_image(__orig, __new):
+    # Only update when __new item have url.
+    if __new and __new.get("url"):
         image = __orig or {}
         image["index"] = __new.get("index")
         image["width"] = __new.get("width")
@@ -368,6 +356,7 @@ def updated_image(__orig, __new):
         image["url"] = __new.get("url")
         image["ref_url"] = __new.get("ref_url")
         return image
+
     return __orig
 
 
