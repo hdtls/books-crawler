@@ -8,11 +8,12 @@ from books_scrapy.utils.misc import eval_js_variable
 
 class The517MangaSpider(BookSpider):
     name = "www.517manhua.com"
-
+    # start_urls = ["http://www.517manhua.com/xuanhuan/jiesuomoshide99genvzhu/"]
     qTcms_m_indexurl = "http://images.yiguahai.com"
 
     def get_detail(self, response):
         loader = MangaLoader(response=response)
+
         loader.add_xpath(
             "cover_image", "//div[contains(@class, 'mh-date-bgpic')]//img/@src"
         )
@@ -47,24 +48,26 @@ class The517MangaSpider(BookSpider):
 
         if not qTcms_S_m_murl_e:
             return
-
+            
         qTcms_S_m_murl_e = base64.b64decode(qTcms_S_m_murl_e).decode()
 
         orig_url_list = qTcms_S_m_murl_e.split("$qingtiandy$")
-
-        if not orig_url_list:
+        qTcms_S_m_name=eval_js_variable("qTcms_S_m_name", script_tag),
+        qTcms_S_m_playm=eval_js_variable("qTcms_S_m_playm", script_tag),
+        if not isinstance(orig_url_list):
+            self.logger.error(f"Failed to parse <{qTcms_S_m_name}> {qTcms_S_m_playm} refer: {response.url}")
             return
 
         config = QTCMSConfiguration(
             qTcms_Cur=eval_js_variable("qTcms_Cur", script_tag),
             qTcms_S_m_id=eval_js_variable("qTcms_S_m_id", script_tag),
             qTcms_S_p_id=eval_js_variable("qTcms_S_p_id", script_tag),
-            qTcms_S_m_name=eval_js_variable("qTcms_S_m_name", script_tag),
+            qTcms_S_m_name=qTcms_S_m_name,
             qTcms_S_classid1pinyin=eval_js_variable(
                 "qTcms_S_classid1pinyin", script_tag
             ),
             qTcms_S_titlepinyin=eval_js_variable("qTcms_S_titlepinyin", script_tag),
-            qTcms_S_m_playm=eval_js_variable("qTcms_S_m_playm", script_tag),
+            qTcms_S_m_playm=qTcms_S_m_playm,
             qTcms_S_m_mhttpurl=eval_js_variable("qTcms_S_m_mhttpurl", script_tag),
             qTcms_S_m_murl_e=qTcms_S_m_murl_e,
             qTcms_S_m_murl_e2=eval_js_variable("qTcms_S_m_murl_e2", script_tag),
@@ -99,7 +102,7 @@ class The517MangaSpider(BookSpider):
         loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
         loader.add_value(
-            "asset",
+            "assets",
             list(
                 map(
                     lambda url: self._replace_img_url_hostname(url, config),
@@ -137,7 +140,6 @@ class The517MangaSpider(BookSpider):
                     + qTcms_S_m_mhttpurl
                 )
             except:
-                self.logger.error("无法解析章节图片...")
-            return None
+                return None
         else:
             return None

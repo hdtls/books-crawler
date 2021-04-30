@@ -61,7 +61,7 @@ class The36MHSpider(BookSpider):
         loader.add_xpath("name", "//div[contains(@class, 'w996 title pr')]/h2/text()")
         loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
-        loader.add_value("asset", image_urls)
+        loader.add_value("assets", image_urls)
 
         item = loader.load_item()
 
@@ -96,11 +96,11 @@ class The36MHSpider(BookSpider):
         item = revert_formatted_meta(response.meta)
 
         files = []
-        for image in item.asset.files:
+        for image in item.assets.files:
             image["ref_url"] = domain + image["ref_url"]
             files.append(image)
 
-        item.asset.files = files
+        item.assets.files = files
 
         yield item
 

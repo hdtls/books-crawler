@@ -1,7 +1,7 @@
 import dataclasses
 import typing
 
-from typing import Any, List, Optional
+from typing import Any
 
 
 class CodingError(Exception):
@@ -105,74 +105,3 @@ def typing_inspect(target, path=None):
         typing_inspect_types(
             f"{path or type(target)}.{field_name}", expectation=expectation, value=value
         )
-
-
-@dataclasses.dataclass
-class Author:
-    name: str
-
-
-@dataclasses.dataclass
-class MangaArea:
-    name: str
-
-
-@dataclasses.dataclass
-class MangaCategory:
-    name: str
-
-    def __validate__(self, path=None):
-        typing_inspect(self, path)
-
-
-@dataclasses.dataclass
-class PHAsset:
-    files: List[dict]
-
-    def __validate__(self, path=None):
-        typing_inspect(self, path)
-
-
-@dataclasses.dataclass
-class MangaChapter:
-    asset: PHAsset
-    optional: Optional[PHAsset] = None
-
-    def __validate__(self, path=None):
-        typing_inspect(self, path)
-
-
-@dataclasses.dataclass
-class Manga:
-    cover_image: dict
-    excerpt: str
-    authors: List[Author]
-    schedule: int = 0
-    ref_urls: Optional[List[str]] = None
-    area: Optional[MangaArea] = None
-    aliases: Optional[List[str]] = None
-    background_image: Optional[dict] = None
-    promo_image: Optional[dict] = None
-    categories: Optional[List[MangaCategory]] = None
-    chapters: Optional[List[MangaChapter]] = None
-
-
-if __name__ == "__main__":
-    # typing_validate(Manga({}, "", None))
-    # typing_validate(Manga("str", "", []))
-    # typing_validate(Manga({}, "", ["str"]))
-    # typing_validate(Manga({}, "", [None]))
-    # typing_validate(Manga({}, "", [Author("name")]))
-    # typing_validate(Manga({}, "", [Author("name")], aliases=["1"]))
-    # typing_validate(Manga({}, "", [Author("name")], background_image=1))
-    # typing_validate(Manga({}, "", [Author("name")], categories=[1]))
-    # typing_validate(Manga({}, "", [Author("name")], categories=[MangaCategory(name=1)]))
-    typing_inspect(
-        Manga(
-            {},
-            "str",
-            [Author("name")],
-            categories=[MangaCategory(name="1")],
-            chapters=[MangaChapter(asset=PHAsset([{}]), optional=PHAsset([{}]))],
-        )
-    )
