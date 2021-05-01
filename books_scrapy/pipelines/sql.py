@@ -33,11 +33,9 @@ class MySQLPipeline:
         is_add = True
 
         if isinstance(item, m.Manga):
-            item.signature = item.make_signature()
-
             exsit_item = (
                 session.query(m.Manga)
-                .filter(m.Manga.signature == item.signature)
+                .filter(m.Manga.id == item.id)
                 .first()
             )
 
@@ -111,12 +109,11 @@ class MySQLPipeline:
 
             return self._handle_write(exsit_item, is_add)
         elif isinstance(item, m.MangaChapter):
-            item.signature = item.make_signature()
             is_add = False
 
             exsit_item = (
                 session.query(m.Manga)
-                .filter(m.Manga.signature == item.books_query_id)
+                .filter(m.Manga.id == item.book_id)
                 .first()
             )
 
