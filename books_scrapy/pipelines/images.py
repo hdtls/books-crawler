@@ -2,13 +2,12 @@ import hashlib
 import logging
 import os
 
-from books_scrapy.items import Author, Manga, MangaChapter
+from books_scrapy.items import Manga, MangaChapter
+from books_scrapy.pipelines.sql import MySQLPipeline
 from books_scrapy.utils.bili import keygen
-from books_scrapy.utils.snowflake import snowflake
 from itemadapter import ItemAdapter
 from io import BytesIO
 from PIL import Image
-from scrapy.exceptions import DropItem
 from scrapy.http.request import Request
 from scrapy.pipelines import images
 from scrapy.pipelines.files import (
@@ -20,8 +19,9 @@ from scrapy.pipelines.files import (
 from scrapy.utils.log import failure_to_exc_info
 from scrapy.utils.request import referer_str
 from scrapy.utils.project import get_project_settings
-from sqlalchemy import create_engine, or_
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm.attributes import flag_modified
 from twisted.internet import defer
 
 logger = logging.getLogger(__name__)
@@ -73,30 +73,9 @@ class ImagesPipeline(images.ImagesPipeline):
         self.session.close()
 
     def get_media_requests(self, item, info):
-        def get_persisted_manga(session, item):
-            if isinstance(item, Manga):
-                return (
-                    session.query(Manga)
-                    .filter(
-                        or_(
-                            Manga.name == item.name,
-                            Manga.aliases.contains((item.aliases or []) + [item.name]),
-                        )
-                    )
-                    .join(Author, Manga.authors)
-                    .filter(Author.name.in_(map(lambda a: a.name, item.authors)))
-                    .first()
-                )
-            elif isinstance(item, MangaChapter):
-                pass
-
-        session = self.session
         urls = []
 
         if isinstance(item, Manga):
-            manga = get_persisted_manga(session, item)
-            item.id = manga.id if manga else snowflake()
-
             if item.cover_image:
                 urls.append(item.cover_image[self.ref_url])
             if item.background_image:
@@ -105,20 +84,6 @@ class ImagesPipeline(images.ImagesPipeline):
                 urls.append(item.promo_image[self.ref_url])
 
         elif isinstance(item, MangaChapter):
-            if not (item.manga and item.manga.id):
-                raise DropItem("Missing parent item.", item)
-
-            manga = session.query(Manga).filter(Manga.id == item.manga.id).first()
-
-            filtered_item = next(
-                filter(lambda el: el.name == item.name, manga.chapters),
-                None,
-            )
-
-            item.id = filtered_item.id if filtered_item else snowflake()
-            item.book_id = manga.id
-            item.manga = None
-            
             if item.cover_image:
                 urls.append(item.cover_image[self.ref_url])
             for image in item.assets.files:
@@ -211,16 +176,20 @@ class ImagesPipeline(images.ImagesPipeline):
                 # e.g. cover_image, background_image, promo_image.
                 if item.cover_image and url == item.cover_image.get(self.ref_url):
                     item.cover_image = self._make_assets_file(result)
+                    flag_modified(item, "cover_image")
                 elif item.background_image and url == item.background_image.get(
                     self.ref_url
                 ):
                     item.background_image = self._make_assets_file(result)
+                    flag_modified(item, "background_image")
                 elif item.promo_image and url == item.promo_image.get(self.ref_url):
                     item.promo_image = self._make_assets_file(result)
+                    flag_modified(item, "promo_image")
             elif isinstance(item, MangaChapter):
                 files = item.assets.files
                 if item.cover_image and url == item.cover_image.get(self.ref_url):
                     item.cover_image = self._make_assets_file(result)
+                    flag_modified(item, "cover_image")
                 else:
                     for index, image in enumerate(item.assets.files):
                         if url == image.get(self.ref_url):
@@ -238,7 +207,7 @@ class ImagesPipeline(images.ImagesPipeline):
             item.assets.files = list(
                 filter(lambda file: file.get("url"), item.assets.files)
             )
-        return item
+        return MySQLPipeline.handle_write(self.session, item)
 
     def file_path(self, request, response=None, info=None, *, item=None):
         """Override file_path with id relative value to reduce duplicated downloads from difference spider."""

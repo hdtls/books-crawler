@@ -110,9 +110,9 @@ SCHEDULER_QUEUE_CLASS = "scrapy_redis.queue.PriorityQueue"
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
+    "books_scrapy.pipelines.images.ImagesPipeline": 500,
+    "books_scrapy.pipelines.sql.MySQLPipeline": 400,
     "books_scrapy.pipelines.validate.ValidatePipeline": 200,
-    "books_scrapy.pipelines.images.ImagesPipeline": 400,
-    "books_scrapy.pipelines.sql.MySQLPipeline": 500,
     # "scrapy_redis.pipelines.RedisPipeline": 300,
 }
 
