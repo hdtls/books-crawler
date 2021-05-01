@@ -169,7 +169,6 @@ class MangaChapter:
         "manga_chapters",
         mapper_registry.metadata,
         Column("id", BigInteger, default=snowflake, primary_key=True),
-        Column("signature", String(32), nullable=False, unique=True),
         Column("cover_image", JSON(none_as_null=True)),
         Column("name", String, nullable=False),
         Column("ref_urls", JSON(none_as_null=True)),
@@ -191,15 +190,8 @@ class MangaChapter:
 
     name: str
     assets: PHAsset
-    signature: Optional[str] = None
-    books_query_id: str = None
     cover_image: Optional[dict] = None
     ref_urls: Optional[List[str]] = None
-
-    def make_signature(self):
-        plaintext = self.books_query_id + self.name
-        plaintext = plaintext.encode("utf-8")
-        return hashlib.md5(plaintext).hexdigest()
 
     def merge(self, other):
         self.assets.merge(other.assets)
@@ -243,7 +235,6 @@ class Manga:
         "manga",
         mapper_registry.metadata,
         Column("id", BigInteger, default=snowflake, primary_key=True),
-        Column("signature", String(32), nullable=True, unique=True),
         Column("name", String(255), nullable=False),
         Column("excerpt", Text, nullable=False),
         Column("cover_image", JSON(none_as_null=True), nullable=False),
@@ -282,7 +273,6 @@ class Manga:
     cover_image: dict
     excerpt: str
     name: str
-    signature: Optional[str]
     schedule: int = 0
     authors: List[Author] = field(default_factory=list)
     ref_urls: Optional[List[str]] = None
@@ -292,15 +282,6 @@ class Manga:
     promo_image: Optional[dict] = None
     categories: Optional[List[MangaCategory]] = None
     chapters: Optional[List[MangaChapter]] = None
-
-    def make_signature(self):
-        plaintext = (
-            self.name + "-" + ",".join(map(lambda author: author.name, self.authors))
-        )
-        plaintext = plaintext.encode("utf-8")
-        md5 = hashlib.md5()
-        md5.update(plaintext)
-        return md5.hexdigest()
 
     def merge(self, other):
         """

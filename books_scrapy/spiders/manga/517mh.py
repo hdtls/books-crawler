@@ -39,7 +39,7 @@ class The517MangaSpider(BookSpider):
     def get_catalog(self, response):
         return response.xpath("//ul[@id='mh-chapter-list-ol-0']/li/a")
 
-    def parse_chapter_data(self, response, user_info):
+    def parse_chapter_data(self, response, book_info):
         script_tag = response.xpath(
             "//script[contains(text(), 'var qTcms_S_m_murl_e=')]"
         ).get()
@@ -99,7 +99,6 @@ class The517MangaSpider(BookSpider):
 
         loader = ChapterLoader()
         loader.add_value("name", config.qTcms_S_m_playm)
-        loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
         loader.add_value(
             "assets",
@@ -111,7 +110,9 @@ class The517MangaSpider(BookSpider):
             ),
         )
 
-        yield loader.load_item()
+        item = loader.load_item()
+        item.manga = book_info
+        yield item
 
     def _replace_img_url_hostname(self, orig_url, config):
         if orig_url.startswith("/"):
