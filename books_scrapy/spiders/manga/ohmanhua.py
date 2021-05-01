@@ -40,9 +40,15 @@ class OHManhuaSpider(BookSpider):
         return loader.load_item()
 
     def get_catalog(self, response):
-        return response.xpath("//div[contains(@class, 'all_data_list')]//li/a")
+        return list(
+            reversed(
+                response.xpath(
+                    "//div[contains(@class, 'all_data_list')]//li/a/@href"
+                ).getall()
+            )
+        )
 
-    def parse_chapter_data(self, response, user_info):
+    def parse_chapter_data(self, response, book_info):
         match = re.findall(r"var C_DATA= ?(.*?);", response.text)
 
         if len(match) <= 0:
@@ -71,7 +77,6 @@ class OHManhuaSpider(BookSpider):
 
         loader = ChapterLoader()
         loader.add_value("name", loaded_chapter["pagename"])
-        loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
         loader.add_value(
             "assets",
@@ -83,7 +88,9 @@ class OHManhuaSpider(BookSpider):
             ),
         )
 
-        yield loader.load_item()
+        item = loader.load_item()
+        item.manga = book_info
+        yield item
 
     @staticmethod
     def _load_chapter(ciphertext):

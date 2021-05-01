@@ -46,7 +46,7 @@ class The36MHSpider(BookSpider):
     def get_catalog(self, response):
         return response.xpath("//ul[@id='chapter-list-4']/li/a")
 
-    def parse_chapter_data(self, response, user_info):
+    def parse_chapter_data(self, response, book_info):
         image_urls = eval_js_variable("chapterImages", response.text)
 
         path = eval_js_variable("chapterPath", response.text)
@@ -59,12 +59,12 @@ class The36MHSpider(BookSpider):
         loader = ChapterLoader(response=response)
 
         loader.add_xpath("name", "//div[contains(@class, 'w996 title pr')]/h2/text()")
-        loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
         loader.add_value("assets", image_urls)
 
         item = loader.load_item()
-
+        item.manga = book_info
+        
         yield response.follow(
             "/js/config.js",
             self._resolve_img_url_hostname,

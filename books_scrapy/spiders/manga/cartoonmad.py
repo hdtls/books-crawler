@@ -31,7 +31,7 @@ class CartoonMadSpider(BookSpider):
     def get_catalog(self, response):
         return response.xpath("//fieldset//tr/td//a")
 
-    def parse_chapter_data(self, response, user_info):
+    def parse_chapter_data(self, response, book_info):
         # For now we only support asp hosted chapter.
         # urls = html.css("img::attr(src)").getall()
         img_url = response.xpath(
@@ -54,7 +54,6 @@ class CartoonMadSpider(BookSpider):
         loader = ChapterLoader(response=response)
 
         loader.add_value("name", response.xpath("//title/text()").get().split(" - ")[1])
-        loader.add_value("books_query_id", user_info)
         loader.add_value("ref_urls", [response.url])
         loader.add_value(
             "assets",
@@ -66,4 +65,6 @@ class CartoonMadSpider(BookSpider):
             ),
         )
 
-        yield loader.load_item()
+        item = loader.load_item()
+        item.manga = book_info
+        yield item

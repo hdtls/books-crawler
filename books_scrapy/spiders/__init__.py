@@ -17,7 +17,6 @@ class BookSpider(RedisSpider):
         """Parse detail page data (e.g. book info and catalog)."""
 
         book_info = self.get_detail(response)
-        book_info.signature = book_info.make_signature()
 
         catalog = self.get_catalog(response)
         if not catalog:
@@ -28,7 +27,7 @@ class BookSpider(RedisSpider):
         yield from response.follow_all(
             catalog,
             self._parse_chapter_data,
-            meta=formatted_meta(book_info.signature),
+            meta=formatted_meta(book_info),
         )
 
     def get_detail(self, response):
@@ -52,13 +51,13 @@ class BookSpider(RedisSpider):
         )
 
     def _parse_chapter_data(self, response):
-        signature = revert_formatted_meta(response.meta)
-        return self.parse_chapter_data(response, signature)
+        book_info = revert_formatted_meta(response.meta)
+        return self.parse_chapter_data(response, book_info)
 
-    def parse_chapter_data(self, response, user_info):
+    def parse_chapter_data(self, response, book_info):
         """
         Parse chapter page data. Override this function to provide parsing logic.
-        All response have meta which value is signature of this book.
+        All response have meta which value is info of this book.
         """
         raise NotImplementedError(
             f"{self.__class__.__name__}.parse_chapter_data is not implemented."

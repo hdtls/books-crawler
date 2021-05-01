@@ -16,8 +16,8 @@ def list_extend(lhs, rhs):
 
 
 def formatted_meta(arg):
-    return {"__user_info__": arg}
+    return {"__meta__": arg}
 
 
 def revert_formatted_meta(arg):
-    return arg["__user_info__"]
+    return arg["__meta__"]
