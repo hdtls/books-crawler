@@ -2,7 +2,7 @@ import hashlib
 import logging
 import os
 
-from books_scrapy.items import Manga, MangaChapter
+from books_scrapy.items import Author, Manga, MangaChapter
 from books_scrapy.utils.bili import keygen
 from books_scrapy.utils.snowflake import snowflake
 from itemadapter import ItemAdapter
@@ -20,7 +20,7 @@ from scrapy.pipelines.files import (
 from scrapy.utils.log import failure_to_exc_info
 from scrapy.utils.request import referer_str
 from scrapy.utils.project import get_project_settings
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, or_
 from sqlalchemy.orm import Session, sessionmaker
 from twisted.internet import defer
 
@@ -64,52 +64,61 @@ class ImagesPipeline(images.ImagesPipeline):
 
     def open_spider(self, spider):
         super().open_spider(spider)
-        engine = create_engine(get_project_settings()["MYSQL_URL"], encoding="utf8")
+        engine = create_engine(
+            get_project_settings()["MYSQL_URL"], encoding="utf8", echo=True
+        )
         self.session: Session = sessionmaker(bind=engine)()
 
     def close_spider(self, spider):
         self.session.close()
 
     def get_media_requests(self, item, info):
-        def _resolve_item_id(session, item):
+        def get_persisted_manga(session, item):
             if isinstance(item, Manga):
-                exsit_item = (
+                return (
                     session.query(Manga)
-                    .filter(Manga.signature == item.signature)
+                    .filter(
+                        or_(
+                            Manga.name == item.name,
+                            Manga.aliases.contains((item.aliases or []) + [item.name]),
+                        )
+                    )
+                    .join(Author, Manga.authors)
+                    .filter(Author.name.in_(map(lambda a: a.name, item.authors)))
                     .first()
                 )
-                item.id = exsit_item.id if exsit_item else snowflake()
-
             elif isinstance(item, MangaChapter):
-                exsit_item = (
-                    session.query(Manga)
-                    .filter(Manga.signature == item.books_query_id)
-                    .first()
-                )
+                pass
 
-                if not exsit_item:
-                    raise DropItem("Missing parent item.", item)
-
-                filtered_item = next(
-                    filter(lambda el: el.name == item.name, exsit_item.chapters),
-                    None,
-                )
-
-                item.id = filtered_item.id if filtered_item else snowflake()
-                item.book_id = exsit_item.id
-
-        _resolve_item_id(self.session, item)
-
+        session = self.session
         urls = []
 
         if isinstance(item, Manga):
+            manga = get_persisted_manga(session, item)
+            item.id = manga.id if manga else snowflake()
+
             if item.cover_image:
                 urls.append(item.cover_image[self.ref_url])
             if item.background_image:
                 urls.append(item.background_image[self.ref_url])
             if item.promo_image:
                 urls.append(item.promo_image[self.ref_url])
+
         elif isinstance(item, MangaChapter):
+            if not (item.manga and item.manga.id):
+                raise DropItem("Missing parent item.", item)
+
+            manga = session.query(Manga).filter(Manga.id == item.manga.id).first()
+
+            filtered_item = next(
+                filter(lambda el: el.name == item.name, manga.chapters),
+                None,
+            )
+
+            item.id = filtered_item.id if filtered_item else snowflake()
+            item.book_id = manga.id
+            item.manga = None
+            
             if item.cover_image:
                 urls.append(item.cover_image[self.ref_url])
             for image in item.assets.files:
@@ -120,7 +129,7 @@ class ImagesPipeline(images.ImagesPipeline):
         return [Request(url) for url in urls]
 
     def media_to_download(self, request, info, *, item=None):
-        def _success(result):
+        def handle_stat_file(result):
             import time
 
             if not result:
@@ -156,7 +165,7 @@ class ImagesPipeline(images.ImagesPipeline):
 
         path = self.file_path(request, info=info, item=item)
         dfd = defer.maybeDeferred(self.store.stat_file, path, info)
-        dfd.addCallbacks(_success, lambda _: None)
+        dfd.addCallbacks(handle_stat_file, lambda _: None)
         dfd.addErrback(
             lambda f: logger.error(
                 self.__class__.__name__ + ".store.stat_file",
