@@ -164,6 +164,15 @@ class ImagesPipeline(images.ImagesPipeline):
         return {"checksum": checksum, "width": width, "height": height}
 
     def item_completed(self, results, item, info):
+        if isinstance(item, Manga):
+            exsit_item = self.session.query(Manga).filter(Manga.id == item.id).first()
+        elif isinstance(item, MangaChapter):
+            exsit_item = (
+                self.session.query(MangaChapter)
+                .filter(MangaChapter.id == item.id)
+                .first()
+            )
+
         for result in results:
             if not result[0]:
                 logger.debug(result[1])
@@ -175,39 +184,43 @@ class ImagesPipeline(images.ImagesPipeline):
                 # If item is Manga instance there are several field needs update.
                 # e.g. cover_image, background_image, promo_image.
                 if item.cover_image and url == item.cover_image.get(self.ref_url):
-                    item.cover_image = self._make_assets_file(result)
-                    flag_modified(item, "cover_image")
+                    exsit_item.cover_image = self._make_assets_file(result)
+                    flag_modified(exsit_item, "cover_image")
                 elif item.background_image and url == item.background_image.get(
                     self.ref_url
                 ):
-                    item.background_image = self._make_assets_file(result)
-                    flag_modified(item, "background_image")
+                    exsit_item.background_image = self._make_assets_file(result)
+                    flag_modified(exsit_item, "background_image")
                 elif item.promo_image and url == item.promo_image.get(self.ref_url):
-                    item.promo_image = self._make_assets_file(result)
-                    flag_modified(item, "promo_image")
+                    exsit_item.promo_image = self._make_assets_file(result)
+                    flag_modified(exsit_item, "promo_image")
             elif isinstance(item, MangaChapter):
-                files = item.assets.files
                 if item.cover_image and url == item.cover_image.get(self.ref_url):
-                    item.cover_image = self._make_assets_file(result)
-                    flag_modified(item, "cover_image")
+                    exsit_item.cover_image = self._make_assets_file(result)
+                    flag_modified(exsit_item, "cover_image")
                 else:
+                    files = item.assets.files
                     for index, image in enumerate(item.assets.files):
                         if url == image.get(self.ref_url):
                             # Keep index same as original.
                             files[index] = self._make_assets_file(result)
-                item.assets.files = files
-
+                    # Filter success downloaded image files.
+                    files = list(
+                        filter(
+                            lambda file: file.get("url")
+                            and file.get("width")
+                            and file.get("height"),
+                            item.assets.files,
+                        )
+                    )
+                    exsit_item.assets.files = files
+                    flag_modified(exsit_item.assets, "files")
             else:
                 ItemAdapter(item)[self.images_urls_field] = [
                     meta["path"] for success, meta in results if success
                 ]
-
-        if isinstance(item, MangaChapter):
-            # Filter success downloaded image files.
-            item.assets.files = list(
-                filter(lambda file: file.get("url"), item.assets.files)
-            )
-        return MySQLPipeline.handle_write(self.session, item)
+                exsit_item = item
+        return MySQLPipeline.handle_write(self.session, exsit_item)
 
     def file_path(self, request, response=None, info=None, *, item=None):
         """Override file_path with id relative value to reduce duplicated downloads from difference spider."""
