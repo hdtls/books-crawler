@@ -2,6 +2,8 @@ import hashlib
 import logging
 import os
 
+from scrapy.exceptions import DropItem
+
 from books_scrapy.items import Manga, MangaChapter
 from books_scrapy.pipelines.sql import MySQLPipeline
 from books_scrapy.utils.bili import keygen
@@ -64,15 +66,16 @@ class ImagesPipeline(images.ImagesPipeline):
 
     def open_spider(self, spider):
         super().open_spider(spider)
-        engine = create_engine(
-            get_project_settings()["MYSQL_URL"], encoding="utf8", echo=True
-        )
+        engine = create_engine(get_project_settings()["MYSQL_URL"], encoding="utf8")
         self.session: Session = sessionmaker(bind=engine)()
 
     def close_spider(self, spider):
         self.session.close()
 
     def get_media_requests(self, item, info):
+        if not item or not item.id:
+            raise DropItem("Invalid item", item)
+
         urls = []
 
         if isinstance(item, Manga):
@@ -165,13 +168,14 @@ class ImagesPipeline(images.ImagesPipeline):
 
     def item_completed(self, results, item, info):
         if isinstance(item, Manga):
-            exsit_item = self.session.query(Manga).filter(Manga.id == item.id).first()
+            exist_item = self.session.query(Manga).get(item.id)
         elif isinstance(item, MangaChapter):
-            exsit_item = (
-                self.session.query(MangaChapter)
-                .filter(MangaChapter.id == item.id)
-                .first()
-            )
+            exist_item = self.session.query(MangaChapter).get(item.id)
+        else:
+            exist_item = item
+
+        if not exist_item:
+            return
 
         for result in results:
             if not result[0]:
@@ -184,20 +188,20 @@ class ImagesPipeline(images.ImagesPipeline):
                 # If item is Manga instance there are several field needs update.
                 # e.g. cover_image, background_image, promo_image.
                 if item.cover_image and url == item.cover_image.get(self.ref_url):
-                    exsit_item.cover_image = self._make_assets_file(result)
-                    flag_modified(exsit_item, "cover_image")
+                    exist_item.cover_image = self._make_assets_file(result)
+                    flag_modified(exist_item, "cover_image")
                 elif item.background_image and url == item.background_image.get(
                     self.ref_url
                 ):
-                    exsit_item.background_image = self._make_assets_file(result)
-                    flag_modified(exsit_item, "background_image")
+                    exist_item.background_image = self._make_assets_file(result)
+                    flag_modified(exist_item, "background_image")
                 elif item.promo_image and url == item.promo_image.get(self.ref_url):
-                    exsit_item.promo_image = self._make_assets_file(result)
-                    flag_modified(exsit_item, "promo_image")
+                    exist_item.promo_image = self._make_assets_file(result)
+                    flag_modified(exist_item, "promo_image")
             elif isinstance(item, MangaChapter):
                 if item.cover_image and url == item.cover_image.get(self.ref_url):
-                    exsit_item.cover_image = self._make_assets_file(result)
-                    flag_modified(exsit_item, "cover_image")
+                    exist_item.cover_image = self._make_assets_file(result)
+                    flag_modified(exist_item, "cover_image")
                 else:
                     files = item.assets.files
                     for index, image in enumerate(item.assets.files):
@@ -213,14 +217,14 @@ class ImagesPipeline(images.ImagesPipeline):
                             item.assets.files,
                         )
                     )
-                    exsit_item.assets.files = files
-                    flag_modified(exsit_item.assets, "files")
+                    exist_item.assets.files = files
+                    flag_modified(exist_item.assets, "files")
             else:
                 ItemAdapter(item)[self.images_urls_field] = [
                     meta["path"] for success, meta in results if success
                 ]
-                exsit_item = item
-        return MySQLPipeline.handle_write(self.session, exsit_item)
+                exist_item = item
+        return MySQLPipeline.handle_write(self.session, exist_item)
 
     def file_path(self, request, response=None, info=None, *, item=None):
         """Override file_path with id relative value to reduce duplicated downloads from difference spider."""
