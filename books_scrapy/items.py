@@ -4,7 +4,6 @@
 # https://docs.scrapy.org/en/latest/topics/items.html
 
 import enum
-import hashlib
 
 from books_scrapy.utils.diff import iter_diff
 from books_scrapy.utils.misc import list_extend
@@ -31,8 +30,11 @@ from sqlalchemy.sql.sqltypes import (
 mapper_registry = registry()
 
 
-class Level(enum.Enum):
-    zombie = "zombie"
+class Role(enum.Enum):
+    reader = "reader"
+    robot = "robot"
+    author = "author"
+    publisher = "publisher"
 
 
 @mapper_registry.mapped
@@ -44,7 +46,7 @@ class Author:
         mapper_registry.metadata,
         Column("id", BigInteger, default=snowflake, nullable=False, primary_key=True),
         Column("name", String, nullable=False, unique=True),
-        Column("level", Enum(Level), default=Level.zombie, nullable=False),
+        Column("role", Enum(Role), default=Role.robot, nullable=False),
         Column("created_at", DateTime, default=datetime.utcnow()),
         Column(
             "updated_at",
@@ -136,10 +138,6 @@ class PHAsset:
         ),
     )
 
-    __mapper_args__ = {
-        "properties": {"chapter": relationship("MangaChapter", back_populates="assets")}
-    }
-
     files: List[dict] = field(default_factory=list, repr=False)
 
     @property
@@ -182,11 +180,7 @@ class MangaChapter:
         ),
     )
 
-    __mapper_args__ = {
-        "properties": {
-            "assets": relationship("PHAsset", back_populates="chapter", uselist=False)
-        }
-    }
+    __mapper_args__ = {"properties": {"assets": relationship("PHAsset", uselist=False)}}
 
     name: str
     assets: PHAsset
@@ -256,16 +250,14 @@ class Manga:
 
     __mapper_args__ = {
         "properties": {
-            "chapters": relationship("MangaChapter", backref="manga"),
+            "chapters": relationship("MangaChapter"),
             "authors": relationship(
                 "Author",
                 secondary=users_manga_linkers,
-                backref="manga",
             ),
             "categories": relationship(
                 "MangaCategory",
                 secondary=manga_categories_manga_linkers,
-                backref="manga",
             ),
         }
     }
