@@ -29,16 +29,16 @@ class MySQLPipeline:
         session = self.session
 
         if isinstance(item, m.Manga):
-            exsit_item = self.get_persisted_manga(session, item)
+            exist_item = self.get_persisted_manga(session, item)
 
-            if exsit_item and exsit_item.copyrighted:
+            if exist_item and exist_item.copyrighted:
                 raise DropItem("Ignore copyrighted item.", item)
 
             # Link manga and area.
             # This operation is only triggered when `item.area` is not None and `exsit_item`
             # is None or `exsit_item` not None but `exsit_item.area_id` is None.
             if item.area and (
-                not exsit_item or (exsit_item and not exsit_item.area_id)
+                not exist_item or (exist_item and not exist_item.area_id)
             ):
                 # Try to query `MangaArea.id` from db. If exsit write it to `item` else
                 # save `item.area` as new `MangaArea` item. then asign id value to `item`.
@@ -50,12 +50,13 @@ class MySQLPipeline:
                 if area_id:
                     item.area_id = area_id
                 else:
+                    session.add(item.area)
                     item.area_id = self.handle_write(session, item.area).id
 
             # Make relationship between manga and authors.
             orig_authors = []
-            if exsit_item:
-                orig_authors = exsit_item.authors
+            if exist_item:
+                orig_authors = exist_item.authors
             else:
                 # Query all authors that name in item.authors
                 orig_authors = (
@@ -68,14 +69,15 @@ class MySQLPipeline:
             # and update `manga.authors` to new value.
             # For some reasons, we only do incremental updates for book author relationship.
             for i in iter_diff(orig_authors, item.authors).added:
+                session.add(i)
                 written = self.handle_write(session, i)
                 orig_authors.append(written)
                 item.authors = orig_authors
 
             # Link manga and categories.
             orig_CAT = None
-            if exsit_item:
-                orig_CAT = exsit_item.categories
+            if exist_item:
+                orig_CAT = exist_item.categories
             else:
                 orig_CAT = (
                     session.query(m.MangaCategory)
@@ -86,39 +88,37 @@ class MySQLPipeline:
                 )
 
             for i in iter_diff(orig_CAT, item.categories).added:
+                session.add(i)
                 written = self.handle_write(session, i)
                 orig_CAT.append(written)
                 item.categories = orig_CAT
 
-            if exsit_item:
-                exsit_item.merge(item)
-                return self.handle_write(session, exsit_item)
+            if exist_item:
+                exist_item.merge(item)
+                return self.handle_write(session, exist_item)
             else:
-                exsit_item = item
-                return self.handle_write(session, exsit_item, True)
+                exist_item = item
+                session.add(exist_item)
+                return self.handle_write(session, exist_item)
 
         elif isinstance(item, m.MangaChapter):
-            is_add = False
+            exist_item = self.get_persisted_manga(session, item.manga)
 
-            exsit_item = self.get_persisted_manga(session, item.manga)
-
-            if not exsit_item:
+            if not exist_item:
                 raise DropItem("Missing parent item.", item)
 
             filtered_item = next(
-                filter(lambda el: el.name == item.name, exsit_item.chapters),
+                filter(lambda el: el.name == item.name, exist_item.chapters),
                 None,
             )
 
             if filtered_item:
                 filtered_item.merge(item)
-                self.handle_write(session, exsit_item, is_add=is_add)
-                return filtered_item
+                return self.handle_write(session, filtered_item)
             else:
-                item.book_id = exsit_item.id
-                exsit_item.chapters.append(item)
-                self.handle_write(session, exsit_item, is_add=is_add)
-                return item
+                item.book_id = exist_item.id
+                exist_item.chapters.append(item)
+                return self.handle_write(session, item)
 
     @staticmethod
     def get_persisted_manga(session, item):
@@ -132,21 +132,21 @@ class MySQLPipeline:
             )
             .join(m.Author, m.Manga.authors)
             .filter(m.Author.name.in_(map(lambda a: a.name, item.authors)))
+            # .join(m.MangaCategory, m.Manga.categories)
+            # .join(m.MangaChapter, m.Manga.chapters)
+            # .join(m.MangaArea, m.Manga.area)
             .first()
         )
 
     @staticmethod
-    def handle_write(session, item, is_add=False):
+    def handle_write(session, item):
         """
         Flush changes and add new item to db if is_add is true.
         """
-        if item and is_add:
-            session.add(item)
 
         try:
             session.commit()
+            return item
         except SQLAlchemyError as e:
             logger.error(e)
             session.rollback()
-
-        return item
