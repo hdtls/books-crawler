@@ -11,7 +11,7 @@ from books_scrapy.utils.snowflake import snowflake
 from books_scrapy.utils.typing_inspect import CodingError, typing_inspect
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List
+from typing import Any, Optional, List
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.decl_api import registry
 from sqlalchemy.sql.schema import Column, ForeignKey, Table
@@ -45,7 +45,7 @@ class Author:
         "users",
         mapper_registry.metadata,
         Column("id", BigInteger, default=snowflake, nullable=False, primary_key=True),
-        Column("name", String, nullable=False, unique=True),
+        Column("username", String, nullable=False, unique=True),
         Column("role", Enum(Role), default=Role.robot, nullable=False),
         Column("created_at", DateTime, default=datetime.utcnow()),
         Column(
@@ -56,12 +56,12 @@ class Author:
         ),
     )
 
-    name: str = field(default_factory=str)
+    username: str = field(default_factory=str)
 
     def __eq__(self, o: object) -> bool:
         if not isinstance(o, Author):
             return False
-        return self.name == o.name
+        return self.username == o.username
 
 
 @mapper_registry.mapped
@@ -105,12 +105,6 @@ class MangaArea:
             onupdate=datetime.utcnow(),
         ),
     )
-
-    __mapper_args__ = {
-        "properties": {
-            "manga": relationship("Manga"),
-        },
-    }
 
     name: str
 
@@ -186,6 +180,7 @@ class MangaChapter:
     assets: PHAsset
     cover_image: Optional[dict] = None
     ref_urls: Optional[List[str]] = None
+    queries = None
 
     def merge(self, other):
         self.assets.merge(other.assets)
@@ -250,7 +245,7 @@ class Manga:
 
     __mapper_args__ = {
         "properties": {
-            "chapters": relationship("MangaChapter"),
+            "chapters": relationship("MangaChapter", backref="manga"),
             "authors": relationship(
                 "Author",
                 secondary=users_manga_linkers,
@@ -283,8 +278,8 @@ class Manga:
         if not isinstance(other, Manga) or self.copyrighted:
             return
 
-        if other.area_id:
-            self.area_id = other.area_id
+        if other.area:
+            self.area = other.area
 
         self.aliases = list_extend(self.aliases, other.aliases)
         self.schedule = other.schedule

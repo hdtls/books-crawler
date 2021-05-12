@@ -30,7 +30,7 @@ class MangaLoader(ItemLoader):
     default_output_processor = TakeFirst()
     default_item_class = Manga
 
-    authors_in = MapCompose(splitting, str.strip, lambda name: Author(name=name))
+    authors_in = MapCompose(splitting, str.strip, lambda name: Author(username=name))
     authors_out = Identity()
     area_in = MapCompose(str.strip, lambda name: MangaArea(name=name))
     aliases_in = MapCompose(splitting, str.strip)
