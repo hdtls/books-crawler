@@ -1,9 +1,9 @@
 import logging
 
-from scrapy.utils.project import get_project_settings
 import books_scrapy.items as m
 from books_scrapy.utils.diff import iter_diff
 from scrapy.exceptions import DropItem
+from scrapy.utils.project import get_project_settings
 from sqlalchemy import create_engine, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker, scoped_session
@@ -11,17 +11,10 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 logger = logging.getLogger(__name__)
 logger.setLevel = get_project_settings()["LOG_LEVEL"]
 
-engine = create_engine(get_project_settings()["MYSQL_URL"], encoding="utf8", echo=True)
+engine = create_engine(get_project_settings()["MYSQL_URL"], encoding="utf8", echo=False)
 session_factory = scoped_session(sessionmaker(bind=engine))
 
-
 class MySQLPipeline:
-    def __init__(self, crawler):
-        self.settings = crawler.settings
-
-    @classmethod
-    def from_crawler(cls, crawler):
-        return cls(crawler)
 
     def open_spider(self, spider):
         self.session = session_factory()
@@ -34,20 +27,7 @@ class MySQLPipeline:
 
         if isinstance(item, m.Manga):
 
-            exist_item = (
-                session.query(m.Manga)
-                .filter(
-                    or_(
-                        m.Manga.name == item.name,
-                        m.Manga.aliases.contains((item.aliases or []) + [item.name]),
-                    )
-                )
-                .join(m.Manga.authors)
-                .filter(
-                    m.Author.username.in_(list(map(lambda a: a.username, item.authors)))
-                )
-                .first()
-            )
+            exist_item = self._get_specified_manga(session, item)
 
             if exist_item and exist_item.copyrighted:
                 raise DropItem("Ignore copyrighted item.", item)
@@ -117,18 +97,7 @@ class MySQLPipeline:
             return exist_item
 
         elif isinstance(item, m.MangaChapter):
-            exist_item = (
-                session.query(m.Manga)
-                .filter(
-                    or_(
-                        m.Manga.name.in_(item.queries[0]),
-                        m.Manga.aliases.contains(item.queries[0]),
-                    )
-                )
-                .join(m.Manga.authors)
-                .filter(m.Author.username.in_(item.queries[1]))
-                .first()
-            )
+            exist_item = self._get_specified_manga(session, item.manga)
 
             if not exist_item:
                 raise DropItem("Missing parent item.", item)
@@ -147,19 +116,18 @@ class MySQLPipeline:
                 self.handle_write(session)
                 return item
 
-    @staticmethod
-    def get_persisted_manga(session, item):
+    def _get_specified_manga(session, manga):
         return (
             session.query(m.Manga)
             .filter(
                 or_(
-                    m.Manga.name == item.name,
-                    m.Manga.aliases.contains((item.aliases or []) + [item.name]),
+                    m.Manga.name == manga.name,
+                    m.Manga.aliases.contains((manga.aliases or []) + [manga.name]),
                 )
             )
             .join(m.Manga.authors)
             .filter(
-                m.Author.username.in_(list(map(lambda a: a.username, item.authors)))
+                m.Author.username.in_(list(map(lambda author: author.username, manga.authors)))
             )
             .first()
         )
