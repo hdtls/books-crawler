@@ -3,9 +3,10 @@ import logging
 import os
 
 from scrapy.exceptions import DropItem
+from sqlalchemy.exc import SQLAlchemyError
 
 from books_scrapy.items import Manga, MangaChapter
-from books_scrapy.pipelines.sql import MySQLPipeline
+from books_scrapy.pipelines.sql import session_factory
 from books_scrapy.utils.bili import keygen
 from itemadapter import ItemAdapter
 from io import BytesIO
@@ -20,9 +21,6 @@ from scrapy.pipelines.files import (
 )
 from scrapy.utils.log import failure_to_exc_info
 from scrapy.utils.request import referer_str
-from scrapy.utils.project import get_project_settings
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.orm.attributes import flag_modified
 from twisted.internet import defer
 
@@ -66,8 +64,7 @@ class ImagesPipeline(images.ImagesPipeline):
 
     def open_spider(self, spider):
         super().open_spider(spider)
-        engine = create_engine(get_project_settings()["MYSQL_URL"], encoding="utf8")
-        self.session: Session = sessionmaker(bind=engine)()
+        self.session = session_factory()
 
     def close_spider(self, spider):
         self.session.close()
@@ -224,7 +221,15 @@ class ImagesPipeline(images.ImagesPipeline):
                     meta["path"] for success, meta in results if success
                 ]
                 exist_item = item
-        return MySQLPipeline.handle_write(self.session, exist_item)
+
+        try:
+            self.session.flush()
+            self.session.commit()
+        except SQLAlchemyError as error:
+            logger.error(error)
+            self.session.rollback()
+
+        return exist_item
 
     def file_path(self, request, response=None, info=None, *, item=None):
         """Override file_path with id relative value to reduce duplicated downloads from difference spider."""
