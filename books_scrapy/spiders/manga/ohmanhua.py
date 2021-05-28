@@ -89,7 +89,7 @@ class OHManhuaSpider(BookSpider):
         )
 
         item = loader.load_item()
-        item.queries = book_info
+        item.manga = book_info
         yield item
 
     @staticmethod

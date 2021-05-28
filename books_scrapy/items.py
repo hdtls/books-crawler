@@ -11,7 +11,7 @@ from books_scrapy.utils.snowflake import snowflake
 from books_scrapy.utils.typing_inspect import CodingError, typing_inspect
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Optional, List
+from typing import Optional, List
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.decl_api import registry
 from sqlalchemy.sql.schema import Column, ForeignKey, Table
@@ -257,18 +257,20 @@ class Manga:
         }
     }
 
-    cover_image: dict
-    excerpt: str
     name: str
+    excerpt: str
+    cover_image: dict = field(default_factory=dict)
+    copyrighted: bool = field(init=False, default=False)
     schedule: int = 0
-    authors: List[Author] = field(default_factory=list)
     ref_urls: Optional[List[str]] = None
-    area: Optional[MangaArea] = None
     aliases: Optional[List[str]] = None
     background_image: Optional[dict] = None
     promo_image: Optional[dict] = None
+    area: Optional[MangaArea] = None
+    area_id: int = field(init=False)
     categories: Optional[List[MangaCategory]] = None
-    chapters: Optional[List[MangaChapter]] = None
+    chapters: List[MangaChapter] = field(init=False, default_factory=list)
+    authors: List[Author] = field(init=False, default_factory=list)
 
     def merge(self, other):
         """
