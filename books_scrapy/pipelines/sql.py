@@ -6,9 +6,13 @@ from books_scrapy.utils.diff import iter_diff
 from scrapy.exceptions import DropItem
 from sqlalchemy import create_engine, or_
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session, sessionmaker, scoped_session
+from sqlalchemy.orm import sessionmaker, scoped_session
 
 logger = logging.getLogger(__name__)
+logger.setLevel = get_project_settings()["LOG_LEVEL"]
+
+engine = create_engine(get_project_settings()["MYSQL_URL"], encoding="utf8", echo=True)
+session_factory = scoped_session(sessionmaker(bind=engine))
 
 
 class MySQLPipeline:
@@ -20,9 +24,7 @@ class MySQLPipeline:
         return cls(crawler)
 
     def open_spider(self, spider):
-        engine = create_engine(get_project_settings()["MYSQL_URL"], encoding="utf8", echo=True)
-        session_factory = sessionmaker(bind=engine)
-        self.session: Session = session_factory()
+        self.session = session_factory()
 
     def close_spider(self, spider):
         self.session.close()
@@ -32,7 +34,20 @@ class MySQLPipeline:
 
         if isinstance(item, m.Manga):
 
-            exist_item = self.get_persisted_manga(session, item)
+            exist_item = (
+                session.query(m.Manga)
+                .filter(
+                    or_(
+                        m.Manga.name == item.name,
+                        m.Manga.aliases.contains((item.aliases or []) + [item.name]),
+                    )
+                )
+                .join(m.Manga.authors)
+                .filter(
+                    m.Author.username.in_(list(map(lambda a: a.username, item.authors)))
+                )
+                .first()
+            )
 
             if exist_item and exist_item.copyrighted:
                 raise DropItem("Ignore copyrighted item.", item)
@@ -40,9 +55,7 @@ class MySQLPipeline:
             # Link manga and area.
             # This operation is only triggered when `item.area` is not None and `exsit_item`
             # is None or `exsit_item` not None but `exsit_item.area_id` is None.
-            if item.area and (
-                not exist_item or (exist_item and not exist_item.area)
-            ):
+            if item.area and (not exist_item or (exist_item and not exist_item.area)):
                 # Try to query `MangaArea.id` from db. If exsit write it to `item` else
                 # save `item.area` as new `MangaArea` item. then asign id value to `item`.
                 filtered_area = (
@@ -52,9 +65,6 @@ class MySQLPipeline:
                 )
                 if filtered_area:
                     item.area = filtered_area
-                # else:
-                    # session.add(item.area)
-                    # self.handle_write(session, item.area)
 
             # Make relationship between manga and authors.
             orig_authors = []
@@ -74,9 +84,6 @@ class MySQLPipeline:
             # and update `manga.authors` to new value.
             # For some reasons, we only do incremental updates for book author relationship.
             for i in iter_diff(orig_authors, item.authors).added:
-                # session.add(i)
-                # self.handle_write(session, i)
-                # written = i
                 orig_authors.append(i)
             item.authors = orig_authors
 
@@ -110,7 +117,18 @@ class MySQLPipeline:
             return exist_item
 
         elif isinstance(item, m.MangaChapter):
-            exist_item = self.get_manga_with_queries(session, item.queries)
+            exist_item = (
+                session.query(m.Manga)
+                .filter(
+                    or_(
+                        m.Manga.name.in_(item.queries[0]),
+                        m.Manga.aliases.contains(item.queries[0]),
+                    )
+                )
+                .join(m.Manga.authors)
+                .filter(m.Author.username.in_(item.queries[1]))
+                .first()
+            )
 
             if not exist_item:
                 raise DropItem("Missing parent item.", item)
@@ -143,19 +161,6 @@ class MySQLPipeline:
             .filter(
                 m.Author.username.in_(list(map(lambda a: a.username, item.authors)))
             )
-            # .join(m.MangaCategory, m.Manga.categories)
-            # .join(m.MangaChapter, m.Manga.chapters)
-            # .join(m.MangaArea, m.Manga.area)
-            .first()
-        )
-
-    @staticmethod
-    def get_manga_with_queries(session, queries):
-        return (
-            session.query(m.Manga)
-            .filter(or_(m.Manga.name.in_(queries[0]), m.Manga.aliases.contains(queries[0])))
-            .join(m.Manga.authors)
-            .filter(m.Author.username.in_(queries[1]))
             .first()
         )
 
