@@ -5,10 +5,10 @@
 
 import enum
 
-from books_scrapy.utils.diff import iter_diff
-from books_scrapy.utils.misc import list_extend
-from books_scrapy.utils.snowflake import snowflake
-from books_scrapy.utils.typing_inspect import CodingError, typing_inspect
+from books.utils.diff import iter_diff
+from books.utils.misc import list_extend
+from books.utils.snowflake import snowflake
+from books.utils.typing_inspect import CodingError, typing_inspect
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List
@@ -260,7 +260,7 @@ class Manga:
     name: str
     excerpt: str
     cover_image: dict = field(default_factory=dict)
-    copyrighted: bool = field(init=False, default=False)
+    copyrighted: Optional[bool] = field(init=False, default=False)
     schedule: int = 0
     ref_urls: Optional[List[str]] = None
     aliases: Optional[List[str]] = None

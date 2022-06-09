@@ -1,19 +1,35 @@
 import base64
-import demjson
+import json
 import re
 
-from books_scrapy.items import *
-from books_scrapy.loaders import ChapterLoader, MangaLoader
-from books_scrapy.spiders import BookSpider
+from books.items import *
+from books.loaders import ChapterLoader, MangaLoader
+from books.utils.misc import formatted_meta, revert_formatted_meta
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from scrapy_redis.spiders import RedisSpider
 
 
-class OHManhuaSpider(BookSpider):
-    name = "www.cocomanhua.com"
-    # start_urls = ["https://www.cocomanhua.com/19338/"]
+class CocoMangaSpider(RedisSpider):
+    name = "coco"
 
-    def get_detail(self, response):
+    def parse(self, response, **kwargs):
+        book_info = self.parse_details(response)
+        catalog = self.parse_catalog(response)
+        if not catalog:
+            return
+
+        if not book_info:
+            return
+
+        yield book_info
+
+        meta = formatted_meta(book_info)
+        meta["playwright"] = True
+
+        yield from response.follow_all(catalog[:1], callback=self.parse_chapter_data, meta=meta)
+
+    def parse_details(self, response):
         loader = MangaLoader(response=response)
         loader.add_xpath("name", "//dd[contains(@class, 'fed-deta-content')]/h1/text()")
         loader.add_xpath(
@@ -39,7 +55,7 @@ class OHManhuaSpider(BookSpider):
 
         return loader.load_item()
 
-    def get_catalog(self, response):
+    def parse_catalog(self, response):
         return list(
             reversed(
                 response.xpath(
@@ -48,13 +64,14 @@ class OHManhuaSpider(BookSpider):
             )
         )
 
-    def parse_chapter_data(self, response, book_info):
+    def parse_chapter_data(self, response):
         match = re.findall(r"var C_DATA= ?(.*?);", response.text)
 
         if len(match) <= 0:
             return
 
-        loaded_chapter = self._load_chapter(demjson.decode(match[0]))
+        loaded_chapter = None
+        loaded_chapter = self._load_chapter(match[0].strip('\''))
 
         if not loaded_chapter:
             return
@@ -89,14 +106,14 @@ class OHManhuaSpider(BookSpider):
         )
 
         item = loader.load_item()
-        item.manga = book_info
+        item.manga = revert_formatted_meta(response.meta)
         yield item
 
     @staticmethod
     def _load_chapter(ciphertext):
         assert isinstance(ciphertext, str)
 
-        plaintext = OHManhuaSpider._decrypt(ciphertext)
+        plaintext = CocoMangaSpider._decrypt(ciphertext)
 
         match = re.findall(r"mh_info=(.*?);", plaintext)
 
@@ -104,15 +121,16 @@ class OHManhuaSpider(BookSpider):
             return None
 
         # If matched then serializing first match to original chapter dict value.
-        dict_value = demjson.decode(match[0])
+        dict_value = json.loads(match[0].strip('\''))
+        dict_value = None
 
         if dict_value["enc_code1"]:
             dict_value["page_size"] = int(
-                OHManhuaSpider._decrypt(dict_value["enc_code1"])
+                CocoMangaSpider._decrypt(dict_value["enc_code1"])
             )
 
         if dict_value["enc_code2"]:
-            dict_value["img_url_path"] = OHManhuaSpider._decrypt(
+            dict_value["img_url_path"] = CocoMangaSpider._decrypt(
                 dict_value["enc_code2"],
                 "fw125gjdi9ertyui",
             )
@@ -159,18 +177,21 @@ class OHManhuaSpider(BookSpider):
             default_key_list.insert(0, input_key)
 
         for k in default_key_list:
+            try:
             # Encode key to utf8 bytes.
-            message = base64.b64decode(ciphertext)
+                message = base64.b64decode(ciphertext)
 
-            decryptor = Cipher(algorithms.AES(k), modes.ECB()).decryptor()
-            # PKCS7 unpadding
-            unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
+                decryptor = Cipher(algorithms.AES(k), modes.ECB()).decryptor()
+                # PKCS7 unpadding
+                unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
 
-            plaintext = decryptor.update(message) + decryptor.finalize()
-            plaintext = unpadder.update(plaintext) + unpadder.finalize()
+                plaintext = decryptor.update(message) + decryptor.finalize()
+                plaintext = unpadder.update(plaintext) + unpadder.finalize()
 
-            if plaintext:
-                # Convert bytes to utf8 string.
-                return plaintext.decode()
+                if plaintext:
+                    # Convert bytes to utf8 string.
+                    return plaintext.decode()
+            except:
+                pass
 
         return ciphertext.decode()

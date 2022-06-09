@@ -1,7 +1,7 @@
 import logging
 
-import books_scrapy.items as m
-from books_scrapy.utils.diff import iter_diff
+import books.items as m
+from books.utils.diff import iter_diff
 from scrapy.exceptions import DropItem
 from scrapy.utils.project import get_project_settings
 from sqlalchemy import create_engine, or_
@@ -116,7 +116,7 @@ class MySQLPipeline:
                 self.handle_write(session)
                 return item
 
-    def _get_specified_manga(session, manga):
+    def _get_specified_manga(self, session, manga):
         return (
             session.query(m.Manga)
             .filter(

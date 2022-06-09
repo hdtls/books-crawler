@@ -1,4 +1,4 @@
-from books_scrapy.utils.typing_inspect import CodingError, typing_inspect
+from books.utils.typing_inspect import CodingError, typing_inspect
 from scrapy.exceptions import DropItem
 
 

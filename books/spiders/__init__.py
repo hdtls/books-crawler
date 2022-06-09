@@ -3,7 +3,7 @@
 # Please refer to the documentation for information on how to create and manage
 # your spiders.
 
-from books_scrapy.utils.misc import formatted_meta, revert_formatted_meta
+from books.utils.misc import formatted_meta, revert_formatted_meta
 from scrapy_redis.spiders import RedisSpider
 
 

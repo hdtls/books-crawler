@@ -1,6 +1,11 @@
-Scrapy
-Pillow
-demjson
-PyMySQL
-SQLAlchemy
-Scrapy-Redis
+cryptography==37.0.2
+itemadapter==0.6.0
+itemloaders==1.0.4
+Pillow==9.1.1
+PyMySQL==1.0.2
+Scrapy==2.6.1
+SQLAlchemy==1.4.37
+Twisted==22.4.0
+scrapy-selenium==0.0.7
+selenium==4.2.0
+git+https://github.com/rmax/scrapy-redis.git

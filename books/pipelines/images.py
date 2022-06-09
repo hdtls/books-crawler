@@ -5,9 +5,9 @@ import os
 from scrapy.exceptions import DropItem
 from sqlalchemy.exc import SQLAlchemyError
 
-from books_scrapy.items import Manga, MangaChapter
-from books_scrapy.pipelines.sql import session_factory
-from books_scrapy.utils.bili import keygen
+from books.items import Manga, MangaChapter
+from books.pipelines.sql import session_factory
+from books.utils.bili import keygen
 from itemadapter import ItemAdapter
 from io import BytesIO
 from PIL import Image

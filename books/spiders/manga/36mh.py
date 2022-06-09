@@ -1,11 +1,11 @@
 from scrapy.loader import ItemLoader
-from books_scrapy.spiders import BookSpider
+from books.spiders import BookSpider
 import json
 import re
 
-from books_scrapy.items import *
-from books_scrapy.loaders import ChapterLoader, MangaLoader
-from books_scrapy.utils.misc import (
+from books.items import *
+from books.loaders import ChapterLoader, MangaLoader
+from books.utils.misc import (
     eval_js_variable,
     formatted_meta,
     revert_formatted_meta,

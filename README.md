@@ -1,1 +1,1 @@
-# books-scrapy
+# Python books crawler

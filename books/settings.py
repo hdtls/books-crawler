@@ -1,4 +1,4 @@
-# Scrapy settings for books_scrapy project
+# Scrapy settings for books project
 #
 # For simplicity, this file contains only settings considered important or
 # commonly used. You can find more settings consulting the documentation:
@@ -9,20 +9,20 @@
 
 from pathlib import Path
 
-BOT_NAME = "books_scrapy"
+BOT_NAME = "books"
 
 SPIDER_MODULES = [
-    "books_scrapy.spiders",
-    "books_scrapy.spiders.manga",
+    "books.spiders",
+    "books.spiders.manga",
 ]
-NEWSPIDER_MODULE = "books_scrapy.spiders"
+NEWSPIDER_MODULE = "books.spiders"
 
 FEED_EXPORT_ENCODING = "utf-8"
 
 LOG_LEVEL = "DEBUG"
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
-# USER_AGENT = 'books_scrapy (+http://www.yourdomain.com)'
+# USER_AGENT = 'books (+http://www.yourdomain.com)'
 
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = False
@@ -45,23 +45,24 @@ CONCURRENT_REQUESTS_PER_DOMAIN = 16
 TELNETCONSOLE_ENABLED = False
 
 # Override the default request headers:
-# DEFAULT_REQUEST_HEADERS = {
-#   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-#   'Accept-Language': 'en',
-# }
+DEFAULT_REQUEST_HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.61 Safari/537.36"
+}
 
 # Enable or disable spider middlewares
 # See https://docs.scrapy.org/en/latest/topics/spider-middleware.html
 SPIDER_MIDDLEWARES = {
-    #    'books_scrapy.middlewares.BooksScrapySpiderMiddleware': 543,
+    #    'books.middlewares.BooksScrapySpiderMiddleware': 543,
 }
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 DOWNLOADER_MIDDLEWARES = {
-    #    'books_scrapy.middlewares.BooksScrapyDownloaderMiddleware': 543,
-    "scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware": 810,
+    "books.middlewares.PlaywrightMiddleware": 543,
 }
+
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
@@ -110,9 +111,9 @@ SCHEDULER_QUEUE_CLASS = "scrapy_redis.queue.PriorityQueue"
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
-    "books_scrapy.pipelines.images.ImagesPipeline": 500,
-    "books_scrapy.pipelines.sql.MySQLPipeline": 400,
-    "books_scrapy.pipelines.validate.ValidatePipeline": 200,
+    "books.pipelines.images.ImagesPipeline": 500,
+    "books.pipelines.sql.MySQLPipeline": 400,
+    # "books.pipelines.validate.ValidatePipeline": 200,
     # "scrapy_redis.pipelines.RedisPipeline": 300,
 }
 

@@ -1,4 +1,4 @@
-from books_scrapy.items import (
+from books.items import (
     Manga,
     Author,
     MangaArea,

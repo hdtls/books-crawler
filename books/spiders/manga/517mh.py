@@ -1,9 +1,9 @@
 import base64
 
-from books_scrapy.items import *
-from books_scrapy.loaders import ChapterLoader, MangaLoader
-from books_scrapy.spiders import BookSpider
-from books_scrapy.utils.misc import eval_js_variable
+from books.items import *
+from books.loaders import ChapterLoader, MangaLoader
+from books.spiders import BookSpider
+from books.utils.misc import eval_js_variable
 
 
 class The517MangaSpider(BookSpider):
